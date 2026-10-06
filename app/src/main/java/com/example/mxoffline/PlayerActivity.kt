@@ -1202,7 +1202,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         if (!::batteryText.isInitialized || !::clockText.isInitialized || !::topTimeStatusView.isInitialized) return
         clockText.text = clockFormat.format(Date())
         val bat = getBatteryPercentage()
-        batteryText.text = if (bat >= 0) "🔋 $bat%" else ""
+        batteryText.text = if (bat >= 0) "$bat%" else ""
 
         if (::player.isInitialized) {
             val d = player.duration.coerceAtLeast(0)
