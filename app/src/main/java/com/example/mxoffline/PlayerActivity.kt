@@ -21,7 +21,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.app.RecoverableSecurityException
+import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.activity.result.IntentSenderRequest
+import java.io.File
 import android.util.Rational
 import android.util.TypedValue
 import android.view.Gravity
@@ -91,6 +96,22 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private var decoderCircularBtn: TextView? = null
     private var aspectCircularBtn: TextView? = null
     private var orientationCircularBtn: TextView? = null
+    private var deleteCircularBtn: TextView? = null
+    private var deleteTapCount = 0
+    private val deleteResetRunnable = Runnable { resetDeleteTaps() }
+    private var pendingDeleteIndex: Int = -1
+
+    private val deleteIntentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && pendingDeleteIndex in uris.indices) {
+            onVideoDeletedSuccess(pendingDeleteIndex)
+        } else {
+            Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show()
+        }
+        pendingDeleteIndex = -1
+    }
+
     private var currentPlaybackSpeed = 1.0f
 
     private val allQuickButtons = listOf(
@@ -98,6 +119,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         "orientation" to "Orientation Lock",
         "aspect" to "Fit / Aspect Ratio",
         "playlist" to "In-Player Playlist",
+        "delete" to "Delete Video (4 Taps)",
         "audio" to "Audio Tracks",
         "subtitle" to "Subtitles",
         "decoder" to "HW / SW Decoder",
@@ -1023,8 +1045,19 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         aspectCircularBtn = null
         orientationCircularBtn = null
 
-        val savedKeys = settingsPrefs.getStringSet("top_quick_buttons", null)
-            ?: setOf("speed", "orientation", "aspect", "playlist")
+        val rawSaved = settingsPrefs.getStringSet("top_quick_buttons", null)
+        val savedKeys = if (rawSaved == null) {
+            setOf("speed", "orientation", "aspect", "playlist", "delete")
+        } else if (!settingsPrefs.getBoolean("has_initialized_delete_btn", false)) {
+            val updated = rawSaved.toMutableSet().apply { add("delete") }
+            settingsPrefs.edit()
+                .putStringSet("top_quick_buttons", updated)
+                .putBoolean("has_initialized_delete_btn", true)
+                .apply()
+            updated
+        } else {
+            rawSaved
+        }
 
         for ((key, _) in allQuickButtons) {
             if (!savedKeys.contains(key)) continue
@@ -1057,6 +1090,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     val btn = quickCircularButton("📑 List") {
                         showPlaylist()
                     }
+                    quickButtonsLayout.addView(btn)
+                }
+                "delete" -> {
+                    val btn = quickCircularButton("🗑 Del") {
+                        handleDeleteButtonTap()
+                    }
+                    deleteCircularBtn = btn
                     quickButtonsLayout.addView(btn)
                 }
                 "audio" -> {
@@ -1109,7 +1149,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     private fun showTopButtonsCustomizeDialog() {
         val savedKeys = settingsPrefs.getStringSet("top_quick_buttons", null)
-            ?: setOf("speed", "orientation", "aspect", "playlist")
+            ?: setOf("speed", "orientation", "aspect", "playlist", "delete")
         val checkedItems = BooleanArray(allQuickButtons.size) { i ->
             savedKeys.contains(allQuickButtons[i].first)
         }
@@ -1133,6 +1173,161 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun handleDeleteButtonTap() {
+        deleteTapCount++
+        handler.removeCallbacks(deleteResetRunnable)
+
+        when (deleteTapCount) {
+            1 -> {
+                deleteCircularBtn?.text = "🗑 3 more"
+                deleteCircularBtn?.setTextColor(0xffff7777.toInt())
+                hudController.showQuickFeedback("Tap 3 more times to delete")
+                handler.postDelayed(deleteResetRunnable, 2500)
+            }
+            2 -> {
+                deleteCircularBtn?.text = "🗑 2 more"
+                deleteCircularBtn?.setTextColor(0xffff5555.toInt())
+                hudController.showQuickFeedback("Tap 2 more times to delete")
+                handler.postDelayed(deleteResetRunnable, 2500)
+            }
+            3 -> {
+                deleteCircularBtn?.text = "🗑 1 more!"
+                deleteCircularBtn?.setTextColor(0xffff2222.toInt())
+                hudController.showQuickFeedback("Tap 1 more time to delete!")
+                handler.postDelayed(deleteResetRunnable, 2500)
+            }
+            4 -> {
+                resetDeleteTaps()
+                deleteCurrentVideo()
+            }
+            else -> {
+                resetDeleteTaps()
+            }
+        }
+    }
+
+    private fun resetDeleteTaps() {
+        deleteTapCount = 0
+        handler.removeCallbacks(deleteResetRunnable)
+        deleteCircularBtn?.text = "🗑 Del"
+        deleteCircularBtn?.setTextColor(Color.WHITE)
+    }
+
+    private fun deleteCurrentVideo() {
+        if (!::player.isInitialized || uris.isEmpty() || index !in uris.indices) return
+        val currentUriStr = uris[index]
+        val currentUri = Uri.parse(currentUriStr)
+        val currentName = names.getOrNull(index) ?: "Video"
+        pendingDeleteIndex = index
+
+        var successfullyDeleted = false
+
+        if (currentUri.scheme == "file") {
+            runCatching {
+                val f = File(currentUri.path ?: "")
+                if (f.exists()) {
+                    successfullyDeleted = f.delete()
+                }
+            }
+        }
+
+        if (!successfullyDeleted && DocumentsContract.isDocumentUri(this, currentUri)) {
+            runCatching {
+                successfullyDeleted = DocumentsContract.deleteDocument(contentResolver, currentUri)
+            }
+        }
+
+        if (!successfullyDeleted) {
+            try {
+                val rows = contentResolver.delete(currentUri, null, null)
+                if (rows > 0) {
+                    successfullyDeleted = true
+                }
+            } catch (e: SecurityException) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
+                    val intentSender = e.userAction.actionIntent.intentSender
+                    deleteIntentLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
+                    return
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    runCatching {
+                        val pi = MediaStore.createDeleteRequest(contentResolver, listOf(currentUri))
+                        deleteIntentLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                        return
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback below
+            }
+        }
+
+        if (!successfullyDeleted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && currentUri.scheme == "content") {
+            val launched = runCatching {
+                val pi = MediaStore.createDeleteRequest(contentResolver, listOf(currentUri))
+                deleteIntentLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                true
+            }.getOrDefault(false)
+            if (launched) return
+        }
+
+        if (successfullyDeleted) {
+            onVideoDeletedSuccess(index)
+        } else {
+            val fileDeleted = runCatching {
+                contentResolver.query(currentUri, arrayOf(MediaStore.Video.Media.DATA), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val col = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
+                        if (col >= 0) {
+                            val path = cursor.getString(col)
+                            if (!path.isNullOrEmpty()) {
+                                val f = File(path)
+                                if (f.exists() && f.delete()) {
+                                    runCatching { contentResolver.delete(currentUri, null, null) }
+                                    true
+                                } else false
+                            } else false
+                        } else false
+                    } else false
+                } ?: false
+            }.getOrDefault(false)
+
+            if (fileDeleted) {
+                onVideoDeletedSuccess(index)
+            } else {
+                Toast.makeText(this, "Could not delete $currentName from storage, removing from playlist", Toast.LENGTH_SHORT).show()
+                onVideoDeletedSuccess(index)
+            }
+        }
+    }
+
+    private fun onVideoDeletedSuccess(targetIndex: Int) {
+        if (uris.isEmpty() || targetIndex !in uris.indices) return
+        val deletedName = names.getOrNull(targetIndex) ?: "Video"
+
+        resumeManager.clearPosition(uris, targetIndex)
+
+        if (uris.size <= 1) {
+            uris.clear()
+            names.clear()
+            player.stop()
+            player.clearMediaItems()
+            Toast.makeText(this, "Deleted: $deletedName", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
+        player.removeMediaItem(targetIndex)
+        uris.removeAt(targetIndex)
+        names.removeAt(targetIndex)
+
+        val nextIndex = if (targetIndex < uris.size) targetIndex else 0
+        index = nextIndex
+
+        player.seekTo(index, 0)
+        player.play()
+        updateTitle()
+        hudController.showQuickFeedback("Deleted: $deletedName")
     }
 
     private fun showHamburgerMenu() {
