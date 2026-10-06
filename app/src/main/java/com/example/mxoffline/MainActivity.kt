@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.mxoffline.library.LibraryAdapter
+import com.example.mxoffline.library.LibraryListItem
 import com.example.mxoffline.library.MediaScanner
 import com.example.mxoffline.model.FolderItem
 import com.example.mxoffline.model.SafEntry
@@ -55,7 +56,6 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var tabFolders: TextView
     private lateinit var tabAllVideos: TextView
-    private lateinit var tabRecent: TextView
 
     private var currentTab = TAB_FOLDERS
     private var allDeviceVideos = listOf<VideoItem>()
@@ -71,14 +71,15 @@ class MainActivity : ComponentActivity() {
 
     private var searchQuery = ""
     private var sortMode = 0
+    private var isRecentExpanded = false
     private lateinit var adapter: LibraryAdapter
 
     companion object {
         private const val TAB_FOLDERS = 0
         private const val TAB_ALL_VIDEOS = 1
-        private const val TAB_RECENT = 2
-        private const val TAB_FOLDER_VIDEOS = 3
-        private const val TAB_SAF = 4
+        private const val TAB_FOLDER_VIDEOS = 2
+        private const val TAB_SAF = 3
+        private const val RECENT_PREVIEW_LIMIT = 4
     }
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -199,7 +200,7 @@ class MainActivity : ComponentActivity() {
 
         val brandLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), 0, 0, 0)
+            setPadding(dp(12), 0, dp(6), 0)
         }
         brandLayout.addView(TextView(this).apply {
             text = "VX Player"
@@ -276,17 +277,15 @@ class MainActivity : ComponentActivity() {
         permissionBanner.addView(grantBtn)
         root.addView(permissionBanner, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
 
-        // Tab Bar
+        // Tab Bar (Folders & All Videos)
         val tabLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(12), 0, dp(4))
         }
         tabFolders = tabItem("FOLDERS") { selectTab(TAB_FOLDERS) }
         tabAllVideos = tabItem("ALL VIDEOS") { selectTab(TAB_ALL_VIDEOS) }
-        tabRecent = tabItem("RECENT") { selectTab(TAB_RECENT) }
         tabLayout.addView(tabFolders, LinearLayout.LayoutParams(0, dp(38), 1f))
         tabLayout.addView(tabAllVideos, LinearLayout.LayoutParams(0, dp(38), 1f))
-        tabLayout.addView(tabRecent, LinearLayout.LayoutParams(0, dp(38), 1f))
         root.addView(tabLayout)
 
         // Breadcrumb Path Row
@@ -390,9 +389,6 @@ class MainActivity : ComponentActivity() {
 
         tabAllVideos.setTextColor(if (currentTab == TAB_ALL_VIDEOS) activeColor else inactiveColor)
         tabAllVideos.background = if (currentTab == TAB_ALL_VIDEOS) activeBg else null
-
-        tabRecent.setTextColor(if (currentTab == TAB_RECENT) activeColor else inactiveColor)
-        tabRecent.background = if (currentTab == TAB_RECENT) activeBg else null
     }
 
     private fun selectTab(tab: Int) {
@@ -488,16 +484,112 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun getRecentVideos(): List<VideoItem> {
+        return allDeviceVideos.filter {
+            resumePrefs.getLong("pos_${it.uri}", 0L) > 3000L
+        }.sortedByDescending { resumePrefs.getLong("pos_${it.uri}", 0L) }
+    }
+
+    private fun promptClearRecent() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear Recent History")
+            .setMessage("Do you want to clear your recently watched playback history?")
+            .setPositiveButton("Clear") { _, _ ->
+                val editor = resumePrefs.edit()
+                for (key in resumePrefs.all.keys) {
+                    if (key.startsWith("pos_")) {
+                        editor.remove(key)
+                    }
+                }
+                editor.apply()
+                refreshCurrentDisplay()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun refreshCurrentDisplay() {
         when (currentTab) {
             TAB_FOLDERS -> {
-                val filtered = deviceFolders.filter {
+                val recentVideos = getRecentVideos()
+                val filteredRecent = recentVideos.filter {
                     searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
                 }
-                adapter.submitFolders(filtered)
-                resultCount.text = "${filtered.size} folders"
-                emptyView.text = if (filtered.isEmpty()) "No video folders found\n\nGrant storage access or open a folder above." else ""
-                emptyView.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+                val filteredFolders = deviceFolders.filter {
+                    searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
+                }
+
+                val listItems = mutableListOf<LibraryListItem>()
+
+                // 1. Recent Section inside Folder tab (scrolls vertically)
+                if (filteredRecent.isNotEmpty()) {
+                    val hasMore = filteredRecent.size > RECENT_PREVIEW_LIMIT
+                    val showAll = isRecentExpanded || searchQuery.isNotBlank()
+
+                    val primaryAction = if (hasMore) {
+                        if (showAll) "Show Less" else "View All (${filteredRecent.size})"
+                    } else {
+                        "Clear"
+                    }
+
+                    val onPrimaryClick: (() -> Unit) = if (hasMore) {
+                        {
+                            isRecentExpanded = !isRecentExpanded
+                            refreshCurrentDisplay()
+                        }
+                    } else {
+                        { promptClearRecent() }
+                    }
+
+                    val secondaryAction = if (hasMore) "Clear" else null
+                    val onSecondaryClick: (() -> Unit)? = if (hasMore) { { promptClearRecent() } } else null
+
+                    listItems.add(
+                        LibraryListItem.Header(
+                            title = "RECENTLY PLAYED",
+                            count = filteredRecent.size,
+                            actionText = primaryAction,
+                            onActionClick = onPrimaryClick,
+                            secondaryActionText = secondaryAction,
+                            onSecondaryActionClick = onSecondaryClick
+                        )
+                    )
+
+                    val displayRecent = if (showAll) filteredRecent else filteredRecent.take(RECENT_PREVIEW_LIMIT)
+                    displayRecent.forEach { video ->
+                        listItems.add(LibraryListItem.Video(video, filteredRecent))
+                    }
+                }
+
+                // 2. Folders Section (scrolls vertically right below Recent)
+                if (filteredFolders.isNotEmpty()) {
+                    if (filteredRecent.isNotEmpty()) {
+                        listItems.add(
+                            LibraryListItem.Header(
+                                title = "FOLDERS",
+                                count = filteredFolders.size
+                            )
+                        )
+                    }
+                    filteredFolders.forEach { folder ->
+                        listItems.add(LibraryListItem.Folder(folder))
+                    }
+                }
+
+                adapter.submitItems(listItems)
+
+                val totalCountText = buildString {
+                    if (filteredRecent.isNotEmpty()) append("${filteredRecent.size} recent · ")
+                    append("${filteredFolders.size} folders")
+                }
+                resultCount.text = totalCountText
+
+                val isEmpty = filteredRecent.isEmpty() && filteredFolders.isEmpty()
+                emptyView.text = if (isEmpty) {
+                    if (searchQuery.isNotBlank()) "No matching folders or videos found"
+                    else "No video folders found\n\nGrant storage access or open a folder above."
+                } else ""
+                emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
             }
 
             TAB_ALL_VIDEOS -> {
@@ -509,20 +601,6 @@ class MainActivity : ComponentActivity() {
                 resultCount.text = "${sorted.size} videos"
                 emptyView.text = if (sorted.isEmpty()) "No videos found" else ""
                 emptyView.visibility = if (sorted.isEmpty()) View.VISIBLE else View.GONE
-            }
-
-            TAB_RECENT -> {
-                val recent = allDeviceVideos.filter {
-                    resumePrefs.getLong("pos_${it.uri}", 0L) > 3000L
-                }.sortedByDescending { resumePrefs.getLong("pos_${it.uri}", 0L) }
-
-                val filtered = recent.filter {
-                    searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
-                }
-                adapter.submitVideos(filtered)
-                resultCount.text = "${filtered.size} recent videos"
-                emptyView.text = if (filtered.isEmpty()) "No recently watched videos" else ""
-                emptyView.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
             }
 
             TAB_FOLDER_VIDEOS -> {

@@ -1,9 +1,9 @@
 package com.example.mxoffline.library
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -28,46 +28,108 @@ class LibraryAdapter(
     private val resumePrefs: SharedPreferences
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    private var mode = TYPE_FOLDER
-    private var videoItems = listOf<VideoItem>()
-    private var folderItems = listOf<FolderItem>()
-    private var safItems = listOf<SafEntry>()
-
     companion object {
-        const val TYPE_VIDEO = 0
-        const val TYPE_FOLDER = 1
-        const val TYPE_SAF = 2
+        const val VIEW_TYPE_HEADER = 0
+        const val VIEW_TYPE_VIDEO = 1
+        const val VIEW_TYPE_FOLDER = 2
+        const val VIEW_TYPE_SAF = 3
+    }
+
+    private var items = listOf<LibraryListItem>()
+
+    fun submitItems(newItems: List<LibraryListItem>) {
+        items = newItems
+        notifyDataSetChanged()
     }
 
     fun submitVideos(videos: List<VideoItem>) {
-        mode = TYPE_VIDEO
-        videoItems = videos
+        items = videos.map { LibraryListItem.Video(it, videos) }
         notifyDataSetChanged()
     }
 
     fun submitFolders(folders: List<FolderItem>) {
-        mode = TYPE_FOLDER
-        folderItems = folders
+        items = folders.map { LibraryListItem.Folder(it) }
         notifyDataSetChanged()
     }
 
     fun submitSaf(entries: List<SafEntry>) {
-        mode = TYPE_SAF
-        safItems = entries
+        items = entries.map { LibraryListItem.Saf(it) }
         notifyDataSetChanged()
     }
 
-    override fun getItemViewType(position: Int): Int = mode
+    override fun getItemCount(): Int = items.size
 
-    override fun getItemCount(): Int = when (mode) {
-        TYPE_VIDEO -> videoItems.size
-        TYPE_FOLDER -> folderItems.size
-        TYPE_SAF -> safItems.size
-        else -> 0
+    override fun getItemViewType(position: Int): Int {
+        return when (items[position]) {
+            is LibraryListItem.Header -> VIEW_TYPE_HEADER
+            is LibraryListItem.Video -> VIEW_TYPE_VIDEO
+            is LibraryListItem.Folder -> VIEW_TYPE_FOLDER
+            is LibraryListItem.Saf -> VIEW_TYPE_SAF
+        }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val ctx = parent.context
+        fun dp(v: Int) = UiUtils.dp(ctx, v)
+
+        return when (viewType) {
+            VIEW_TYPE_HEADER -> {
+                val row = LinearLayout(ctx).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(4), dp(10), dp(4), dp(6))
+                    layoutParams = RecyclerView.LayoutParams(-1, -2)
+                }
+
+                val title = TextView(ctx).apply {
+                    textSize = 12f
+                    letterSpacing = 0.08f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(0xffffc400.toInt())
+                }
+                row.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+
+                val secondaryBtn = TextView(ctx).apply {
+                    textSize = 12f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(0xff9ea4b2.toInt())
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
+                    visibility = View.GONE
+                }
+                row.addView(secondaryBtn)
+
+                val actionBtn = TextView(ctx).apply {
+                    textSize = 12f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(0xffffc400.toInt())
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
+                    visibility = View.GONE
+                }
+                row.addView(actionBtn)
+
+                HeaderHolder(row, title, secondaryBtn, actionBtn)
+            }
+
+            VIEW_TYPE_VIDEO -> {
+                val card = createMediaCard(ctx)
+                VideoHolder(card)
+            }
+
+            VIEW_TYPE_FOLDER -> {
+                val card = createMediaCard(ctx)
+                FolderHolder(card)
+            }
+
+            VIEW_TYPE_SAF -> {
+                val card = createMediaCard(ctx)
+                SafHolder(card)
+            }
+
+            else -> throw IllegalArgumentException("Unknown viewType: $viewType")
+        }
+    }
+
+    private fun createMediaCard(ctx: Context): MediaCardViews {
         fun dp(v: Int) = UiUtils.dp(ctx, v)
 
         val card = LinearLayout(ctx).apply {
@@ -143,93 +205,126 @@ class LibraryAdapter(
         }
         card.addView(arrow, LinearLayout.LayoutParams(dp(24), -1))
 
-        return MediaHolder(card, thumbImage, folderIconText, durationBadge, progressBar, title, subtitle)
+        return MediaCardViews(card, thumbImage, folderIconText, durationBadge, progressBar, title, subtitle)
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        val h = holder as MediaHolder
-        val ctx = h.itemView.context
+        val item = items[position]
+        val ctx = holder.itemView.context
 
-        when (mode) {
-            TYPE_VIDEO -> {
-                val item = videoItems[position]
-                h.title.text = item.name
-                h.folderIcon.visibility = View.GONE
-                h.thumb.visibility = View.VISIBLE
+        when (holder) {
+            is HeaderHolder -> {
+                val header = item as LibraryListItem.Header
+                holder.title.text = if (header.count > 0) "${header.title} (${header.count})" else header.title
 
-                ThumbnailLoader.load(ctx, item.uri, item.id, h.thumb)
-
-                if (item.durationMs > 0) {
-                    h.duration.text = TimeFormatter.formatDuration(item.durationMs)
-                    h.duration.visibility = View.VISIBLE
+                if (header.secondaryActionText != null && header.onSecondaryActionClick != null) {
+                    holder.secondaryBtn.text = header.secondaryActionText
+                    holder.secondaryBtn.visibility = View.VISIBLE
+                    holder.secondaryBtn.setOnClickListener { header.onSecondaryActionClick.invoke() }
                 } else {
-                    h.duration.visibility = View.GONE
+                    holder.secondaryBtn.visibility = View.GONE
                 }
 
-                val sizeStr = FileSizeFormatter.formatSize(item.sizeBytes)
-                val resBadge = if (item.resolution.isNotBlank()) " · ${item.resolution}" else ""
-                h.subtitle.text = "$sizeStr$resBadge"
-
-                val savedPos = resumePrefs.getLong("pos_${item.uri}", 0L)
-                if (savedPos > 3000L && item.durationMs > 0) {
-                    h.progressBar.progress = ((savedPos * 1000) / item.durationMs).toInt()
-                    h.progressBar.visibility = View.VISIBLE
+                if (header.actionText != null && header.onActionClick != null) {
+                    holder.actionBtn.text = header.actionText
+                    holder.actionBtn.visibility = View.VISIBLE
+                    holder.actionBtn.setOnClickListener { header.onActionClick.invoke() }
                 } else {
-                    h.progressBar.visibility = View.GONE
+                    holder.actionBtn.visibility = View.GONE
                 }
-
-                h.itemView.setOnClickListener { onVideoClick(item, videoItems) }
             }
 
-            TYPE_FOLDER -> {
-                val folder = folderItems[position]
-                h.title.text = folder.name
-                h.subtitle.text = "${folder.videoCount} videos"
-                h.duration.visibility = View.GONE
-                h.progressBar.visibility = View.GONE
+            is VideoHolder -> {
+                val videoItem = (item as LibraryListItem.Video)
+                val video = videoItem.item
+                holder.views.title.text = video.name
+                holder.views.folderIcon.visibility = View.GONE
+                holder.views.thumb.visibility = View.VISIBLE
+
+                ThumbnailLoader.load(ctx, video.uri, video.id, holder.views.thumb)
+
+                if (video.durationMs > 0) {
+                    holder.views.duration.text = TimeFormatter.formatDuration(video.durationMs)
+                    holder.views.duration.visibility = View.VISIBLE
+                } else {
+                    holder.views.duration.visibility = View.GONE
+                }
+
+                val sizeStr = FileSizeFormatter.formatSize(video.sizeBytes)
+                val resBadge = if (video.resolution.isNotBlank()) " · ${video.resolution}" else ""
+                holder.views.subtitle.text = "$sizeStr$resBadge"
+
+                val savedPos = resumePrefs.getLong("pos_${video.uri}", 0L)
+                if (savedPos > 3000L && video.durationMs > 0) {
+                    holder.views.progressBar.progress = ((savedPos * 1000) / video.durationMs).toInt()
+                    holder.views.progressBar.visibility = View.VISIBLE
+                } else {
+                    holder.views.progressBar.visibility = View.GONE
+                }
+
+                holder.itemView.setOnClickListener { onVideoClick(video, videoItem.playlist) }
+            }
+
+            is FolderHolder -> {
+                val folder = (item as LibraryListItem.Folder).item
+                holder.views.title.text = folder.name
+                holder.views.subtitle.text = "${folder.videoCount} videos"
+                holder.views.duration.visibility = View.GONE
+                holder.views.progressBar.visibility = View.GONE
 
                 if (folder.latestVideoUri != null) {
-                    h.folderIcon.visibility = View.GONE
-                    h.thumb.visibility = View.VISIBLE
-                    ThumbnailLoader.load(ctx, folder.latestVideoUri, folder.latestVideoId, h.thumb)
+                    holder.views.folderIcon.visibility = View.GONE
+                    holder.views.thumb.visibility = View.VISIBLE
+                    ThumbnailLoader.load(ctx, folder.latestVideoUri, folder.latestVideoId, holder.views.thumb)
                 } else {
-                    h.thumb.visibility = View.GONE
-                    h.folderIcon.text = "📁"
-                    h.folderIcon.visibility = View.VISIBLE
+                    holder.views.thumb.visibility = View.GONE
+                    holder.views.folderIcon.text = "📁"
+                    holder.views.folderIcon.visibility = View.VISIBLE
                 }
 
-                h.itemView.setOnClickListener { onFolderClick(folder) }
+                holder.itemView.setOnClickListener { onFolderClick(folder) }
             }
 
-            TYPE_SAF -> {
-                val entry = safItems[position]
-                h.title.text = entry.name
-                h.duration.visibility = View.GONE
-                h.progressBar.visibility = View.GONE
+            is SafHolder -> {
+                val entry = (item as LibraryListItem.Saf).item
+                holder.views.title.text = entry.name
+                holder.views.duration.visibility = View.GONE
+                holder.views.progressBar.visibility = View.GONE
 
                 if (entry.isDirectory) {
-                    h.thumb.visibility = View.GONE
-                    h.folderIcon.text = "📁"
-                    h.folderIcon.visibility = View.VISIBLE
-                    h.subtitle.text = "FOLDER"
+                    holder.views.thumb.visibility = View.GONE
+                    holder.views.folderIcon.text = "📁"
+                    holder.views.folderIcon.visibility = View.VISIBLE
+                    holder.views.subtitle.text = "FOLDER"
                 } else {
-                    h.folderIcon.visibility = View.GONE
-                    h.thumb.visibility = View.VISIBLE
-                    h.subtitle.text = FileSizeFormatter.formatSize(entry.sizeBytes)
+                    holder.views.folderIcon.visibility = View.GONE
+                    holder.views.thumb.visibility = View.VISIBLE
+                    holder.views.subtitle.text = FileSizeFormatter.formatSize(entry.sizeBytes)
                 }
 
-                h.itemView.setOnClickListener { onSafClick(entry) }
+                holder.itemView.setOnClickListener { onSafClick(entry) }
             }
         }
     }
 
-    class MediaHolder(
+    class HeaderHolder(
         view: View,
+        val title: TextView,
+        val secondaryBtn: TextView,
+        val actionBtn: TextView
+    ) : RecyclerView.ViewHolder(view)
+
+    class VideoHolder(val views: MediaCardViews) : RecyclerView.ViewHolder(views.root)
+    class FolderHolder(val views: MediaCardViews) : RecyclerView.ViewHolder(views.root)
+    class SafHolder(val views: MediaCardViews) : RecyclerView.ViewHolder(views.root)
+
+    class MediaCardViews(
+        val root: View,
         val thumb: ImageView,
         val folderIcon: TextView,
         val duration: TextView,
         val progressBar: ProgressBar,
         val title: TextView,
         val subtitle: TextView
-    ) : RecyclerView.ViewHolder(view)
+    )
 }
