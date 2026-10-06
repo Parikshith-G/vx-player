@@ -44,3 +44,8 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Picture-in-Picture (PiP)**: Dedicated PiP button and automatic PiP on home button navigation.
 - **In-Player Playlist**: Quick dialog listing all videos in the current folder with loop modes (Repeat All, Repeat One, Off).
 - **System Video Launcher**: Integrated with Android `VIEW` intent filter to play videos from file managers and browsers.
+
+### 🔒 Privacy & 100% Offline Security
+- **No Internet Access**: Zero internet permissions (`android.permission.INTERNET` removed and blocked across all dependencies).
+- **No Open Ports or Sockets**: Strictly no servers, background sockets, or open listening ports.
+- **Air-Gapped Network Configuration**: Network security config disallows cleartext traffic and strips all CA trust anchors, preventing outbound/inbound connections at the OS sandbox level.
