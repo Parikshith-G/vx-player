@@ -41,6 +41,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
@@ -182,6 +183,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.BLACK
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
         parseIntentData()
         backgroundPlayEnabled = settingsPrefs.getBoolean("bg_play", false)
         preferSoftwareDecoder = settingsPrefs.getBoolean("sw_decoder", false)
@@ -191,9 +196,30 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         initPlayer()
         initComponents()
         registerPipReceiver()
+        setupBackNavigation()
         hideSystemBars()
         scheduleHideControls()
         handler.post(progressTracker)
+    }
+
+    private fun setupBackNavigation() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (isScreenLocked) {
+                    showLockTemporarily()
+                } else if (controlsVisible) {
+                    toggleControls()
+                } else {
+                    finish()
+                }
+            }
+        })
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        hideSystemBars()
+        updateStatusHeader()
     }
 
     private fun parseIntentData() {
@@ -303,7 +329,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         // Floating Unlock Button (At the top-left, not middle of screen)
         lockFloatingBtn = TextView(this).apply {
             text = "🔒"; textSize = 22f; gravity = Gravity.CENTER
-            background = UiUtils.rounded(0xee222631.toInt(), 24, this@PlayerActivity); visibility = View.GONE
+            includeFontPadding = false
+            background = GradientDrawable().apply {
+                setColor(0xee222631.toInt())
+                cornerRadius = dp(24).toFloat()
+                setStroke(dp(1), 0x55ffffff.toInt())
+            }
+            visibility = View.GONE
             setOnClickListener { unlockScreen() }
         }
 
@@ -331,7 +363,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         persistentStatusHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), 0, dp(16), 0)
+            setPadding(dp(20), 0, dp(20), 0)
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(0x55000000.toInt(), Color.TRANSPARENT)
@@ -343,6 +375,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
+            setSingleLine(true)
+            includeFontPadding = false
             setShadowLayer(4f, 1f, 1f, 0xdd000000.toInt())
             setPadding(dp(4), dp(2), dp(8), dp(2))
             setOnClickListener {
@@ -357,6 +391,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
+            setSingleLine(true)
+            includeFontPadding = false
             setShadowLayer(4f, 1f, 1f, 0xdd000000.toInt())
             setPadding(dp(4), dp(2), dp(6), dp(2))
             gravity = Gravity.CENTER_VERTICAL
@@ -366,6 +402,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
+            setSingleLine(true)
+            includeFontPadding = false
             setShadowLayer(4f, 1f, 1f, 0xdd000000.toInt())
             setPadding(dp(4), dp(2), dp(4), dp(2))
             gravity = Gravity.CENTER_VERTICAL
@@ -438,12 +476,28 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
 
         val timelineRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        timeView = TextView(this).apply { text = "00:00"; textSize = 13f; setTextColor(Color.WHITE); setPadding(0, 0, dp(8), 0) }
+        timeView = TextView(this).apply {
+            text = "00:00"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setSingleLine(true)
+            includeFontPadding = false
+            setTextColor(Color.WHITE)
+            setPadding(0, 0, dp(8), 0)
+        }
         seekBar = SeekBar(this).apply {
-            max = 1000; progressTintList = ColorStateList.valueOf(0xffffc400.toInt()); thumbTintList = ColorStateList.valueOf(0xffffc400.toInt())
+            max = 1000
+            progressTintList = ColorStateList.valueOf(0xffffc400.toInt())
+            thumbTintList = ColorStateList.valueOf(0xffffc400.toInt())
         }
         remainingTimeView = TextView(this).apply {
-            text = "00:00"; textSize = 13f; setTextColor(0xffbbbec6.toInt()); setPadding(dp(8), 0, 0, 0)
+            text = "00:00"
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setSingleLine(true)
+            includeFontPadding = false
+            setTextColor(0xffbbbec6.toInt())
+            setPadding(dp(8), 0, 0, 0)
             setOnClickListener { showRemainingTime = !showRemainingTime; updateTimeDisplay() }
         }
         timelineRow.addView(timeView)
@@ -460,7 +514,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             hudController.showQuickFeedback("⟲ 5s")
         }
         val prevBtn = actionTextButton("⏮") { previousVideo() }
-        playPauseBottomBtn = actionTextButton("Ⅱ") { togglePlay() }
+        playPauseBottomBtn = actionTextButton("Ⅱ") { togglePlay() }.apply {
+            textSize = 20f
+            setTextColor(0xffffc400.toInt())
+        }
         val nextBtn = actionTextButton("⏭") { nextVideo() }
         val seekFwd5Btn = actionTextButton("5s ⟳") {
             seekBy(5_000)
@@ -567,7 +624,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     }
 
     private fun actionTextButton(text: String, onClick: () -> Unit) = TextView(this).apply {
-        this.text = text; textSize = 14f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE)
+        this.text = text
+        textSize = 14f
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setTextColor(Color.WHITE)
+        setSingleLine(true)
+        includeFontPadding = false
         setOnClickListener { onClick(); scheduleHideControls() }
     }
 
@@ -577,6 +640,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         typeface = Typeface.DEFAULT_BOLD
         gravity = Gravity.CENTER
         setTextColor(Color.WHITE)
+        setSingleLine(true)
+        includeFontPadding = false
         background = UiUtils.rounded(0x44ffffff.toInt(), 17, this@PlayerActivity)
         setPadding(UiUtils.dp(this@PlayerActivity, 12), UiUtils.dp(this@PlayerActivity, 6), UiUtils.dp(this@PlayerActivity, 12), UiUtils.dp(this@PlayerActivity, 6))
         val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, UiUtils.dp(this@PlayerActivity, 34)).apply {
