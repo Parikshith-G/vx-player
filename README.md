@@ -17,10 +17,11 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Real-Time Search & Sorting**: Search by video/folder name; sort by Name, Date, Size, or Duration.
 
 ### 🎬 Player & Iconic MX Controls
-- **Top Status Header**:
-  - **Top Left**: Real-time elapsed time and total / remaining time display (`04:15 / 1:20:00` or `04:15 (-1:15:45)`). Tap to toggle between total and remaining time.
-  - **Top Right**: Real-time battery percentage indicator (`🔋 85%`), current wall-clock time (`10:30 PM`), and hamburger menu (`☰`).
-- **Top Circular Quick Action Buttons**:
+- **Always-Visible Top Status Header**:
+  - **Top Left**: Real-time elapsed time and total / remaining time display (`04:15 / 1:20:00` or `04:15 (-1:15:45)`). Tap to toggle between total and remaining time. **Always visible**, even when playback controls are hidden or screen is locked.
+  - **Top Right**: Real-time battery percentage indicator (`🔋 85%`) and current wall-clock time (`10:30 PM`). **Always visible**, even when controls are hidden or screen is locked.
+- **Top Controls & Circular Quick Action Buttons**:
+  - Full title and hamburger menu (`☰`) appear when controls are toggled.
   - Horizontal scrolling row of customizable quick action buttons:
     - Playback Speed (`1.0×`)
     - Orientation Lock (`🔄 Auto / Land / Port / Video`)
@@ -40,7 +41,9 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Double Tap Action**: Double tap toggles Play / Pause. Seeking is restricted to the dedicated `±5s` buttons and seekbar to prevent accidental seeks.
 - **Hold to Boost (2.0×)**: Long-press anywhere on the screen temporarily accelerates playback to 2.0× speed; release to restore.
 - **Single Tap**: Toggle immersive playback controls overlay (auto-hides after 4.5s of inactivity).
-- **Screen Lock (Touch Lock)**: Lock button in controls hides all overlays and prevents accidental touches. A floating lock icon allows unlocking.
+- **Screen Lock (Touch Lock with Auto-Hiding Unlock Icon)**:
+  - Tapping the Lock button locks the screen and displays the floating unlock icon briefly (3s) before auto-hiding for completely unobstructed playback.
+  - Tapping the screen while locked brings the unlock button back for 3s so you can tap to unlock, auto-hiding again if untouched.
 
 ### 🔊 Audio & 💬 Subtitles
 - **Hardware (HW) & Software (SW) Decoder**: Switch between hardware-accelerated playback and software decoding.

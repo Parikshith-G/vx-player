@@ -67,8 +67,18 @@ class PlayerGestureController(
 
     fun handleTouchEvent(event: MotionEvent): Boolean {
         if (callback.isLocked()) {
-            if (event.action == MotionEvent.ACTION_UP) {
-                hudController.showQuickFeedback("Screen locked\nTap lock icon to unlock")
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    gestureStartX = event.x
+                    gestureStartY = event.y
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dx = abs(event.x - gestureStartX)
+                    val dy = abs(event.y - gestureStartY)
+                    if (dx < touchSlop && dy < touchSlop) {
+                        callback.onSingleTap()
+                    }
+                }
             }
             return true
         }
