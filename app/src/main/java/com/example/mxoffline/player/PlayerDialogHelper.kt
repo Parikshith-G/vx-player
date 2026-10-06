@@ -23,7 +23,7 @@ class PlayerDialogHelper(
     private val player: ExoPlayer
 ) {
     fun showSpeedDialog(
-        speedButton: TextView,
+        speedButton: TextView? = null,
         onSpeedChanged: (Float) -> Unit
     ) {
         val dp = { v: Int -> UiUtils.dp(context, v) }
@@ -74,7 +74,7 @@ class PlayerDialogHelper(
             player.playbackParameters = PlaybackParameters(clamped, 1.0f)
             val label = TimeFormatter.formatSpeed(clamped)
             speedValueText.text = "$label Speed"
-            speedButton.text = label
+            speedButton?.text = label
             speedSeekBar.progress = speedToProgress(clamped)
             onSpeedChanged(clamped)
         }
@@ -116,7 +116,7 @@ class PlayerDialogHelper(
                     player.playbackParameters = PlaybackParameters(s, 1.0f)
                     val label = TimeFormatter.formatSpeed(s)
                     speedValueText.text = "$label Speed"
-                    speedButton.text = label
+                    speedButton?.text = label
                     onSpeedChanged(s)
                 }
             }

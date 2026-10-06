@@ -114,9 +114,15 @@ class PlayerGestureController(
                     handler.removeCallbacks(holdBoostRunnable)
 
                     if (gestureMode == GESTURE_NONE) {
+                        val topExclusionPx = UiUtils.dp(context, 35).toFloat().coerceAtLeast(60f)
                         if (abs(dy) >= abs(dx)) {
-                            // Vertical swipe: Left = Brightness, Right = Volume
-                            gestureMode = if (gestureStartX < screenWidth / 2f) GESTURE_BRIGHTNESS else GESTURE_VOLUME
+                            // If swipe started near top of screen (pulling down notifications), ignore brightness & volume swipes
+                            if (gestureStartY < topExclusionPx) {
+                                gestureMode = GESTURE_NONE
+                            } else {
+                                // Vertical swipe: Left = Brightness, Right = Volume
+                                gestureMode = if (gestureStartX < screenWidth / 2f) GESTURE_BRIGHTNESS else GESTURE_VOLUME
+                            }
                         } else {
                             // Horizontal swipe: Seek
                             gestureMode = GESTURE_SEEK
@@ -207,20 +213,8 @@ class PlayerGestureController(
             pendingSingleTap = null
             lastTapTime = 0L
 
-            when {
-                x < screenWidth * 0.35f -> {
-                    callback.onSeekBy(-10_000, false)
-                    hudController.showQuickFeedback("⟲ 10s")
-                }
-                x > screenWidth * 0.65f -> {
-                    callback.onSeekBy(10_000, true)
-                    hudController.showQuickFeedback("10s ⟳")
-                }
-                else -> {
-                    callback.onTogglePlay()
-                    hudController.showQuickFeedback(if (player.isPlaying) "Ⅱ" else "▶")
-                }
-            }
+            callback.onTogglePlay()
+            hudController.showQuickFeedback(if (player.isPlaying) "Ⅱ" else "▶")
         } else {
             lastTapTime = now
             lastTapX = x

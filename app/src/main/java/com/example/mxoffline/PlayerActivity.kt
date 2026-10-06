@@ -28,12 +28,18 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.app.AlertDialog
+import android.os.BatteryManager
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -42,6 +48,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -68,15 +75,34 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private lateinit var timeView: TextView
     private lateinit var remainingTimeView: TextView
     private lateinit var seekBar: SeekBar
-    private lateinit var speedButton: TextView
-    private lateinit var resizeButton: TextView
-    private lateinit var orientationButton: TextView
-    private lateinit var decoderBadge: TextView
     private lateinit var lockFloatingBtn: TextView
     private lateinit var playPauseCenterBtn: TextView
     private lateinit var playPauseBottomBtn: TextView
     private lateinit var resumeBanner: LinearLayout
     private lateinit var resumeText: TextView
+
+    // Top Header & Status info
+    private lateinit var batteryText: TextView
+    private lateinit var clockText: TextView
+    private lateinit var topTimeStatusView: TextView
+    private var topTimeStatusMode = 0 // 0: "00:00 / 00:00", 1: "00:00 (-00:00)"
+    private lateinit var quickButtonsLayout: LinearLayout
+    private var speedCircularBtn: TextView? = null
+    private var decoderCircularBtn: TextView? = null
+    private var aspectCircularBtn: TextView? = null
+    private var orientationCircularBtn: TextView? = null
+    private var currentPlaybackSpeed = 1.0f
+
+    private val allQuickButtons = listOf(
+        "speed" to "Playback Speed",
+        "orientation" to "Orientation Lock",
+        "aspect" to "Fit / Aspect Ratio",
+        "playlist" to "In-Player Playlist",
+        "audio" to "Audio Tracks",
+        "subtitle" to "Subtitles",
+        "decoder" to "HW / SW Decoder",
+        "timer" to "Sleep Timer"
+    )
 
     companion object {
         private const val ACTION_PIP_PLAY = "com.example.mxoffline.PIP_PLAY"
@@ -160,6 +186,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         parseIntentData()
         backgroundPlayEnabled = settingsPrefs.getBoolean("bg_play", false)
         preferSoftwareDecoder = settingsPrefs.getBoolean("sw_decoder", false)
+        currentPlaybackSpeed = settingsPrefs.getFloat("playback_speed", 1.0f)
 
         buildUi()
         initPlayer()
@@ -304,66 +331,99 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
         // Top Bar
         topBar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(10), dp(12), dp(10))
-            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xdd000000.toInt(), 0x77000000.toInt(), Color.TRANSPARENT))
-        }
-        val backBtn = iconButton("‹", 26f) { finish() }
-        titleView = TextView(this).apply {
-            text = "Video"; textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(dp(8), 0, dp(8), 0)
-        }
-        decoderBadge = TextView(this).apply {
-            text = if (preferSoftwareDecoder) "SW" else "HW"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
-            setTextColor(0xffffc400.toInt()); background = UiUtils.rounded(0x33ffc400.toInt(), 8, this@PlayerActivity); setPadding(dp(8), dp(4), dp(8), dp(4))
-            setOnClickListener { toggleDecoderMode() }
-        }
-        val audioTrackBtn = iconButton("🎵", 17f) {
-            dialogHelper.showAudioTrackDialog(isMuted) {
-                isMuted = !isMuted
-                player.volume = if (isMuted) 0f else 1f
-                hudController.showQuickFeedback(if (isMuted) "Muted" else "Unmuted")
-            }
-        }
-        val subtitleBtn = iconButton("💬", 17f) {
-            dialogHelper.showSubtitleDialog(
-                currentFontSizeSp = subtitleFontSizeSp,
-                onExternalSubtitleClicked = { subtitlePicker.launch(arrayOf("*/*")) },
-                onFontSizeChanged = { size ->
-                    subtitleFontSizeSp = size
-                    playerView.subtitleView?.setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSizeSp)
-                }
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(6))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xee000000.toInt(), 0x88000000.toInt(), Color.TRANSPARENT)
             )
         }
-        val moreMenuBtn = iconButton("⋮", 22f) { showMoreOptionsMenu() }
 
-        topBar.addView(backBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
-        topBar.addView(titleView, LinearLayout.LayoutParams(0, -2, 1f))
-        topBar.addView(decoderBadge, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(6) })
-        topBar.addView(audioTrackBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
-        topBar.addView(subtitleBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
-        topBar.addView(moreMenuBtn, LinearLayout.LayoutParams(dp(44), dp(44)))
+        // Top Header Row: [‹] [Title + Time Done/Remaining]  ...  [Battery] [Clock] [☰]
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val backBtn = iconButton("‹", 26f) { finish() }
+
+        val titleAndStatusLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(6), 0, dp(8), 0)
+        }
+        titleView = TextView(this).apply {
+            text = "Video"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        topTimeStatusView = TextView(this).apply {
+            text = "00:00 / 00:00"
+            textSize = 11f
+            setTextColor(0xffbbbec6.toInt())
+            setPadding(0, dp(2), 0, 0)
+            setOnClickListener {
+                topTimeStatusMode = (topTimeStatusMode + 1) % 2
+                updateStatusHeader()
+            }
+        }
+        titleAndStatusLayout.addView(titleView)
+        titleAndStatusLayout.addView(topTimeStatusView)
+
+        batteryText = TextView(this).apply {
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(0xffd0d3da.toInt())
+            setPadding(dp(4), dp(4), dp(6), dp(4))
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        clockText = TextView(this).apply {
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(0xffd0d3da.toInt())
+            setPadding(dp(4), dp(4), dp(8), dp(4))
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val hamburgerBtn = iconButton("☰", 22f) { showHamburgerMenu() }
+
+        headerRow.addView(backBtn, LinearLayout.LayoutParams(dp(40), dp(40)))
+        headerRow.addView(titleAndStatusLayout, LinearLayout.LayoutParams(0, -2, 1f))
+        headerRow.addView(batteryText, LinearLayout.LayoutParams(-2, -2))
+        headerRow.addView(clockText, LinearLayout.LayoutParams(-2, -2))
+        headerRow.addView(hamburgerBtn, LinearLayout.LayoutParams(dp(40), dp(40)))
+        topBar.addView(headerRow, LinearLayout.LayoutParams(-1, -2))
+
+        // Top Circular Quick Action Buttons Row
+        val quickButtonsScrollView = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            setPadding(dp(2), dp(6), dp(2), dp(2))
+        }
+        quickButtonsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        quickButtonsScrollView.addView(quickButtonsLayout, FrameLayout.LayoutParams(-2, -2))
+        topBar.addView(quickButtonsScrollView, LinearLayout.LayoutParams(-1, -2))
+        renderTopCircularButtons()
+
         overlayContainer.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
-        // Center Controls
+        // Center Controls: Single play/pause button
         centerControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        val rewind10Btn = roundButton("−10", 15f, dp(58), 0x44ffffff.toInt()) {
-            seekBy(-10_000)
-            hudController.showQuickFeedback("⟲ 10s")
-        }
-        playPauseCenterBtn = roundButton("Ⅱ", 24f, dp(72), 0xffffc400.toInt(), textColor = 0xff101114.toInt()) { togglePlay() }
-        val forward10Btn = roundButton("+10", 15f, dp(58), 0x44ffffff.toInt()) {
-            seekBy(10_000)
-            hudController.showQuickFeedback("10s ⟳")
-        }
-        centerControls.addView(rewind10Btn, LinearLayout.LayoutParams(dp(62), dp(62)).apply { rightMargin = dp(24) })
-        centerControls.addView(playPauseCenterBtn, LinearLayout.LayoutParams(dp(72), dp(72)))
-        centerControls.addView(forward10Btn, LinearLayout.LayoutParams(dp(62), dp(62)).apply { leftMargin = dp(24) })
+        playPauseCenterBtn = roundButton("Ⅱ", 24f, dp(68), 0xffffc400.toInt(), textColor = 0xff101114.toInt()) { togglePlay() }
+        centerControls.addView(playPauseCenterBtn, LinearLayout.LayoutParams(dp(68), dp(68)))
         overlayContainer.addView(centerControls, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
 
         // Bottom Bar
         bottomBar = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(0xee000000.toInt(), 0x77000000.toInt(), Color.TRANSPARENT))
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(8), dp(14), dp(12))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP,
+                intArrayOf(0xee000000.toInt(), 0x77000000.toInt(), Color.TRANSPARENT)
+            )
         }
 
         val timelineRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -380,31 +440,31 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         timelineRow.addView(remainingTimeView)
         bottomBar.addView(timelineRow)
 
+        // Actions Row (Exact MX Player sequence):
+        // 1. Screen Lock, 2. 5s Seek Back, 3. Prev Video, 4. Play/Pause, 5. Next Video, 6. 5s Seek Forward, 7. PiP
         val actionsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val lockBtn = actionTextButton("🔒") { lockScreen() }
-        val prevBtn = actionTextButton("|‹") { previousVideo() }
-        playPauseBottomBtn = actionTextButton("Ⅱ") { togglePlay() }
-        val nextBtn = actionTextButton("›|") { nextVideo() }
-        speedButton = actionTextButton("1.0×") {
-            dialogHelper.showSpeedDialog(speedButton) { speed ->
-                speedButton.text = TimeFormatter.formatSpeed(speed)
-            }
+        val seekBack5Btn = actionTextButton("⟲ 5s") {
+            seekBy(-5_000)
+            hudController.showQuickFeedback("⟲ 5s")
         }
-        resizeButton = actionTextButton("Fit") { cycleResizeMode() }
-        orientationButton = actionTextButton("🔄") { cycleOrientation() }
-        val playlistBtn = actionTextButton("📋") { showPlaylist() }
-        val pipBtn = actionTextButton("PiP") { enterPipMode() }
+        val prevBtn = actionTextButton("⏮") { previousVideo() }
+        playPauseBottomBtn = actionTextButton("Ⅱ") { togglePlay() }
+        val nextBtn = actionTextButton("⏭") { nextVideo() }
+        val seekFwd5Btn = actionTextButton("5s ⟳") {
+            seekBy(5_000)
+            hudController.showQuickFeedback("5s ⟳")
+        }
+        val pipBtn = actionTextButton("⧉") { enterPipMode() }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) pipBtn.visibility = View.GONE
 
         val actionLp = { LinearLayout.LayoutParams(0, dp(44), 1f) }
         actionsRow.addView(lockBtn, actionLp())
+        actionsRow.addView(seekBack5Btn, actionLp())
         actionsRow.addView(prevBtn, actionLp())
         actionsRow.addView(playPauseBottomBtn, actionLp())
         actionsRow.addView(nextBtn, actionLp())
-        actionsRow.addView(speedButton, actionLp())
-        actionsRow.addView(resizeButton, actionLp())
-        actionsRow.addView(orientationButton, actionLp())
-        actionsRow.addView(playlistBtn, actionLp())
+        actionsRow.addView(seekFwd5Btn, actionLp())
         actionsRow.addView(pipBtn, actionLp())
         bottomBar.addView(actionsRow)
 
@@ -492,6 +552,24 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         setOnClickListener { onClick(); scheduleHideControls() }
     }
 
+    private fun quickCircularButton(text: String, onClick: () -> Unit) = TextView(this).apply {
+        this.text = text
+        textSize = 12f
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setTextColor(Color.WHITE)
+        background = UiUtils.rounded(0x44ffffff.toInt(), 17, this@PlayerActivity)
+        setPadding(UiUtils.dp(this@PlayerActivity, 12), UiUtils.dp(this@PlayerActivity, 6), UiUtils.dp(this@PlayerActivity, 12), UiUtils.dp(this@PlayerActivity, 6))
+        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, UiUtils.dp(this@PlayerActivity, 34)).apply {
+            rightMargin = UiUtils.dp(this@PlayerActivity, 8)
+        }
+        layoutParams = lp
+        setOnClickListener {
+            onClick()
+            scheduleHideControls()
+        }
+    }
+
     // Player Lifecycle
     private fun initPlayer() {
         val renderersFactory = DefaultRenderersFactory(this).apply {
@@ -551,6 +629,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             if (uris.isNotEmpty()) {
                 p.setMediaItems(uris.map { MediaItem.fromUri(it) }, index, 0)
                 p.prepare()
+                p.playbackParameters = PlaybackParameters(currentPlaybackSpeed, 1.0f)
                 p.playWhenReady = true
             }
         }
@@ -602,6 +681,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 }
                 seekBar.secondaryProgress = if (d > 0) ((player.bufferedPosition * 1000) / d).toInt() else 0
                 updateTimeDisplay()
+                updateStatusHeader()
 
                 if (player.isPlaying) resumeManager.savePosition(player, uris, index)
                 handler.postDelayed(this, 1000)
@@ -736,7 +816,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         currentAspectModeIndex = (currentAspectModeIndex + 1) % modes.size
         val (label, mode) = modes[currentAspectModeIndex]
         playerView.resizeMode = mode
-        resizeButton.text = label
+        aspectCircularBtn?.text = "📐 $label"
         hudController.showQuickFeedback("Screen: $label")
     }
 
@@ -750,14 +830,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             0 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
                 hudController.showQuickFeedback("Orientation: Auto")
+                orientationCircularBtn?.text = "🔄 Auto"
             }
             1 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 hudController.showQuickFeedback("Orientation: Landscape")
+                orientationCircularBtn?.text = "🔄 Land"
             }
             2 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 hudController.showQuickFeedback("Orientation: Portrait")
+                orientationCircularBtn?.text = "🔄 Port"
             }
             3 -> {
                 val format = player.videoFormat
@@ -765,6 +848,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 requestedOrientation = if (isWide) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
                 hudController.showQuickFeedback("Orientation: Match Video")
+                orientationCircularBtn?.text = "🔄 Video"
             }
         }
     }
@@ -772,13 +856,24 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private fun toggleDecoderMode() {
         preferSoftwareDecoder = !preferSoftwareDecoder
         settingsPrefs.edit().putBoolean("sw_decoder", preferSoftwareDecoder).apply()
-        decoderBadge.text = if (preferSoftwareDecoder) "SW" else "HW"
-        Toast.makeText(this, "Decoder set to ${decoderBadge.text}. Restarting playback...", Toast.LENGTH_SHORT).show()
+        val decLabel = if (preferSoftwareDecoder) "SW" else "HW"
+        decoderCircularBtn?.text = decLabel
+        Toast.makeText(this, "Decoder set to $decLabel. Restarting playback...", Toast.LENGTH_SHORT).show()
         val pos = player.currentPosition
         player.release()
         initPlayer()
         initComponents()
         player.seekTo(index, pos)
+    }
+
+    private fun setPlaybackSpeed(speed: Float) {
+        currentPlaybackSpeed = speed
+        settingsPrefs.edit().putFloat("playback_speed", speed).apply()
+        if (::player.isInitialized) {
+            player.playbackParameters = PlaybackParameters(speed, 1.0f)
+        }
+        speedCircularBtn?.text = TimeFormatter.formatSpeed(speed)
+        hudController.showQuickFeedback("${TimeFormatter.formatSpeed(speed)} Speed")
     }
 
     private fun loadExternalSubtitle(uri: Uri) {
@@ -825,24 +920,163 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         )
     }
 
-    private fun showMoreOptionsMenu() {
-        val options = arrayOf(
+    private fun renderTopCircularButtons() {
+        if (!::quickButtonsLayout.isInitialized) return
+        quickButtonsLayout.removeAllViews()
+        speedCircularBtn = null
+        decoderCircularBtn = null
+        aspectCircularBtn = null
+        orientationCircularBtn = null
+
+        val savedKeys = settingsPrefs.getStringSet("top_quick_buttons", null)
+            ?: setOf("speed", "orientation", "aspect", "playlist")
+
+        for ((key, _) in allQuickButtons) {
+            if (!savedKeys.contains(key)) continue
+            when (key) {
+                "speed" -> {
+                    val btn = quickCircularButton(TimeFormatter.formatSpeed(currentPlaybackSpeed)) {
+                        dialogHelper.showSpeedDialog(speedCircularBtn) { s -> setPlaybackSpeed(s) }
+                    }
+                    speedCircularBtn = btn
+                    quickButtonsLayout.addView(btn)
+                }
+                "orientation" -> {
+                    val label = when (currentOrientationMode) { 1 -> "Land"; 2 -> "Port"; 3 -> "Video"; else -> "Auto" }
+                    val btn = quickCircularButton("🔄 $label") {
+                        cycleOrientation()
+                    }
+                    orientationCircularBtn = btn
+                    quickButtonsLayout.addView(btn)
+                }
+                "aspect" -> {
+                    val modes = listOf("Fit", "Fill", "Zoom")
+                    val label = modes.getOrElse(currentAspectModeIndex) { "Fit" }
+                    val btn = quickCircularButton("📐 $label") {
+                        cycleResizeMode()
+                    }
+                    aspectCircularBtn = btn
+                    quickButtonsLayout.addView(btn)
+                }
+                "playlist" -> {
+                    val btn = quickCircularButton("📑 List") {
+                        showPlaylist()
+                    }
+                    quickButtonsLayout.addView(btn)
+                }
+                "audio" -> {
+                    val btn = quickCircularButton("🎵 Audio") {
+                        dialogHelper.showAudioTrackDialog(isMuted) {
+                            isMuted = !isMuted
+                            player.volume = if (isMuted) 0f else 1f
+                            hudController.showQuickFeedback(if (isMuted) "Muted" else "Unmuted")
+                        }
+                    }
+                    quickButtonsLayout.addView(btn)
+                }
+                "subtitle" -> {
+                    val btn = quickCircularButton("💬 Sub") {
+                        dialogHelper.showSubtitleDialog(
+                            currentFontSizeSp = subtitleFontSizeSp,
+                            onExternalSubtitleClicked = { subtitlePicker.launch(arrayOf("*/*")) },
+                            onFontSizeChanged = { size ->
+                                subtitleFontSizeSp = size
+                                playerView.subtitleView?.setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSizeSp)
+                            }
+                        )
+                    }
+                    quickButtonsLayout.addView(btn)
+                }
+                "decoder" -> {
+                    val btn = quickCircularButton(if (preferSoftwareDecoder) "SW" else "HW") {
+                        toggleDecoderMode()
+                    }
+                    decoderCircularBtn = btn
+                    quickButtonsLayout.addView(btn)
+                }
+                "timer" -> {
+                    val btn = quickCircularButton("⏱ Timer") {
+                        dialogHelper.showSleepTimerDialog { min ->
+                            handler.removeCallbacks(sleepTimerRunnable)
+                            if (min > 0) {
+                                handler.postDelayed(sleepTimerRunnable, min * 60 * 1000L)
+                                hudController.showQuickFeedback("Sleep timer set for $min mins")
+                            } else {
+                                hudController.showQuickFeedback("Sleep timer disabled")
+                            }
+                        }
+                    }
+                    quickButtonsLayout.addView(btn)
+                }
+            }
+        }
+    }
+
+    private fun showTopButtonsCustomizeDialog() {
+        val savedKeys = settingsPrefs.getStringSet("top_quick_buttons", null)
+            ?: setOf("speed", "orientation", "aspect", "playlist")
+        val checkedItems = BooleanArray(allQuickButtons.size) { i ->
+            savedKeys.contains(allQuickButtons[i].first)
+        }
+        val titles = allQuickButtons.map { it.second }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("Quick Action Buttons")
+            .setMultiChoiceItems(titles, checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton("Save") { _, _ ->
+                val newSelected = mutableSetOf<String>()
+                for (i in checkedItems.indices) {
+                    if (checkedItems[i]) {
+                        newSelected.add(allQuickButtons[i].first)
+                    }
+                }
+                settingsPrefs.edit().putStringSet("top_quick_buttons", newSelected).apply()
+                renderTopCircularButtons()
+                hudController.showQuickFeedback("Quick buttons updated")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showHamburgerMenu() {
+        val items = arrayOf(
+            "⚙ Customize Quick Buttons",
             "Playback Speed",
             "Screen Resize (Fit/Fill/Zoom)",
             "Screen Orientation",
+            "Audio Tracks",
+            "Subtitles",
+            "HW / SW Decoder",
             "Sleep Timer",
             "Background Play: ${if (backgroundPlayEnabled) "On" else "Off"}",
             "Video Information",
             "Picture-in-Picture"
         )
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Player Options")
-            .setItems(options) { _, which ->
+        AlertDialog.Builder(this)
+            .setTitle("Player Settings")
+            .setItems(items) { _, which ->
                 when (which) {
-                    0 -> dialogHelper.showSpeedDialog(speedButton) { s -> speedButton.text = TimeFormatter.formatSpeed(s) }
-                    1 -> cycleResizeMode()
-                    2 -> cycleOrientation()
-                    3 -> dialogHelper.showSleepTimerDialog { min ->
+                    0 -> showTopButtonsCustomizeDialog()
+                    1 -> dialogHelper.showSpeedDialog(speedCircularBtn) { s -> setPlaybackSpeed(s) }
+                    2 -> cycleResizeMode()
+                    3 -> cycleOrientation()
+                    4 -> dialogHelper.showAudioTrackDialog(isMuted) {
+                        isMuted = !isMuted
+                        player.volume = if (isMuted) 0f else 1f
+                        hudController.showQuickFeedback(if (isMuted) "Muted" else "Unmuted")
+                    }
+                    5 -> dialogHelper.showSubtitleDialog(
+                        currentFontSizeSp = subtitleFontSizeSp,
+                        onExternalSubtitleClicked = { subtitlePicker.launch(arrayOf("*/*")) },
+                        onFontSizeChanged = { size ->
+                            subtitleFontSizeSp = size
+                            playerView.subtitleView?.setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSizeSp)
+                        }
+                    )
+                    6 -> toggleDecoderMode()
+                    7 -> dialogHelper.showSleepTimerDialog { min ->
                         handler.removeCallbacks(sleepTimerRunnable)
                         if (min > 0) {
                             handler.postDelayed(sleepTimerRunnable, min * 60 * 1000L)
@@ -851,16 +1085,52 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                             hudController.showQuickFeedback("Sleep timer disabled")
                         }
                     }
-                    4 -> {
+                    8 -> {
                         backgroundPlayEnabled = !backgroundPlayEnabled
                         settingsPrefs.edit().putBoolean("bg_play", backgroundPlayEnabled).apply()
                         hudController.showQuickFeedback("Background Play: ${if (backgroundPlayEnabled) "On" else "Off"}")
                     }
-                    5 -> dialogHelper.showVideoInfoDialog(names.getOrNull(index) ?: "Video", preferSoftwareDecoder)
-                    6 -> enterPipMode()
+                    9 -> dialogHelper.showVideoInfoDialog(names.getOrNull(index) ?: "Video", preferSoftwareDecoder)
+                    10 -> enterPipMode()
                 }
             }
             .show()
+    }
+
+    private fun showMoreOptionsMenu() {
+        showHamburgerMenu()
+    }
+
+    private val clockFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+
+    private fun updateStatusHeader() {
+        if (!::batteryText.isInitialized || !::clockText.isInitialized || !::topTimeStatusView.isInitialized) return
+        clockText.text = clockFormat.format(Date())
+        val bat = getBatteryPercentage()
+        batteryText.text = if (bat >= 0) "🔋 $bat%" else ""
+
+        if (::player.isInitialized) {
+            val d = player.duration.coerceAtLeast(0)
+            val p = player.currentPosition.coerceAtLeast(0)
+            val elapsed = TimeFormatter.formatTime(p)
+            topTimeStatusView.text = if (topTimeStatusMode == 0) {
+                "$elapsed / ${TimeFormatter.formatTime(d)}"
+            } else {
+                val rem = (d - p).coerceAtLeast(0)
+                "$elapsed (-${TimeFormatter.formatTime(rem)})"
+            }
+        }
+    }
+
+    private fun getBatteryPercentage(): Int {
+        val bm = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        val batLevel = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        if (batLevel in 0..100) return batLevel
+
+        val intent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        return if (level >= 0 && scale > 0) (level * 100 / scale) else -1
     }
 
     private val sleepTimerRunnable = Runnable {
