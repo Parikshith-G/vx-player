@@ -125,9 +125,10 @@ class PlayerGestureController(
 
                     if (gestureMode == GESTURE_NONE) {
                         val topExclusionPx = UiUtils.dp(context, 35).toFloat().coerceAtLeast(60f)
+                        val bottomExclusionPx = screenHeight - UiUtils.dp(context, 35).toFloat()
                         if (abs(dy) >= abs(dx)) {
-                            // If swipe started near top of screen (pulling down notifications), ignore brightness & volume swipes
-                            if (gestureStartY < topExclusionPx) {
+                            // If swipe started near top (notification shade) or bottom (system nav bar), ignore brightness & volume swipes
+                            if (gestureStartY < topExclusionPx || gestureStartY > bottomExclusionPx) {
                                 gestureMode = GESTURE_NONE
                             } else {
                                 // Vertical swipe: Left = Brightness, Right = Volume
@@ -234,7 +235,7 @@ class PlayerGestureController(
                 callback.onSingleTap()
             }
             pendingSingleTap = single
-            handler.postDelayed(single, 300)
+            handler.postDelayed(single, 220)
         }
     }
 }
