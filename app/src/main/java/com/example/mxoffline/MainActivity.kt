@@ -27,6 +27,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.mxoffline.library.LibraryAdapter
@@ -119,6 +122,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = 0xff0f1115.toInt()
         window.navigationBarColor = 0xff0f1115.toInt()
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
 
         buildScreen()
         setupBackNavigation()
@@ -175,12 +179,33 @@ class MainActivity : ComponentActivity() {
         permissionBanner.visibility = if (hasStoragePermission()) View.GONE else View.VISIBLE
     }
 
+    private fun getStatusBarHeight(): Int {
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else UiUtils.dp(this, 28)
+    }
+
     private fun buildScreen() {
         val dp = { v: Int -> UiUtils.dp(this, v) }
+        val initialTopPadding = getStatusBarHeight().coerceAtLeast(dp(28)) + dp(14)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xff0f1115.toInt())
-            setPadding(dp(16), dp(12), dp(16), 0)
+            setPadding(dp(16), initialTopPadding, dp(16), 0)
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, windowInsets ->
+            val statusBarInset = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+            val cutoutInset = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout()).top
+            val navBarInset = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+
+            val topInset = maxOf(statusBarInset, cutoutInset, getStatusBarHeight())
+            view.setPadding(
+                dp(16),
+                topInset + dp(14),
+                dp(16),
+                navBarInset
+            )
+            windowInsets
         }
 
         // Header
