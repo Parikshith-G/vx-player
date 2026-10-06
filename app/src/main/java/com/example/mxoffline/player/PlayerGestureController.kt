@@ -49,8 +49,12 @@ class PlayerGestureController(
     private var lastTapX = 0f
     private var lastTapY = 0f
     private var originalSpeedBeforeBoost = 1.0f
+    private var wasPlayingBeforeBoost = true
     private var holdStartX = 0f
     private var holdBaseSpeed = 2.0f
+    private var currentHoldSpeed = 2.0f
+    private var rememberedHoldSpeed: Float = context.getSharedPreferences("player_settings", Context.MODE_PRIVATE)
+        .getFloat("hold_speed", 2.0f).coerceIn(0.25f, 8.0f)
     private var pendingSingleTap: Runnable? = null
     private val touchSlop = (ViewConfiguration.get(context).scaledTouchSlop / 2).coerceAtLeast(8)
 
@@ -58,10 +62,15 @@ class PlayerGestureController(
         if (gestureMode == GESTURE_NONE && !callback.isLocked()) {
             gestureMode = GESTURE_HOLD_BOOST
             originalSpeedBeforeBoost = player.playbackParameters.speed
-            holdBaseSpeed = 2.0f
+            wasPlayingBeforeBoost = player.isPlaying
+            holdBaseSpeed = rememberedHoldSpeed
+            currentHoldSpeed = holdBaseSpeed
             holdStartX = gestureStartX
-            player.playbackParameters = PlaybackParameters(holdBaseSpeed, 1.0f)
-            hudController.showSpeed(holdBaseSpeed)
+            player.playbackParameters = PlaybackParameters(currentHoldSpeed, 1.0f)
+            if (!wasPlayingBeforeBoost) {
+                player.play()
+            }
+            hudController.showSpeed(currentHoldSpeed)
         }
     }
 
@@ -112,11 +121,21 @@ class PlayerGestureController(
                     val slideDx = event.x - holdStartX
                     val stepPx = UiUtils.dp(context, 20).toFloat().coerceAtLeast(1f)
                     val deltaSpeed = (slideDx / stepPx) * 0.1f
-                    val targetSpeed = (holdBaseSpeed + deltaSpeed).coerceIn(0.25f, 8.0f)
+                    val rawTargetSpeed = holdBaseSpeed + deltaSpeed
+
+                    // Pin holdStartX if limits are reached to eliminate dead-zone on direction reversal
+                    if (rawTargetSpeed > 8.0f) {
+                        holdStartX = event.x - ((8.0f - holdBaseSpeed) / 0.1f * stepPx)
+                    } else if (rawTargetSpeed < 0.25f) {
+                        holdStartX = event.x - ((0.25f - holdBaseSpeed) / 0.1f * stepPx)
+                    }
+
+                    val targetSpeed = (holdBaseSpeed + ((event.x - holdStartX) / stepPx) * 0.1f).coerceIn(0.25f, 8.0f)
                     val linearSpeed = (kotlin.math.round(targetSpeed * 10f) / 10f).coerceIn(0.25f, 8.0f)
 
-                    player.playbackParameters = PlaybackParameters(linearSpeed, 1.0f)
-                    hudController.showSpeed(linearSpeed)
+                    currentHoldSpeed = linearSpeed
+                    player.playbackParameters = PlaybackParameters(currentHoldSpeed, 1.0f)
+                    hudController.showSpeed(currentHoldSpeed)
                     return true
                 }
 
@@ -188,7 +207,15 @@ class PlayerGestureController(
 
                 when (gestureMode) {
                     GESTURE_HOLD_BOOST -> {
+                        rememberedHoldSpeed = currentHoldSpeed
+                        context.getSharedPreferences("player_settings", Context.MODE_PRIVATE)
+                            .edit()
+                            .putFloat("hold_speed", rememberedHoldSpeed)
+                            .apply()
                         player.playbackParameters = PlaybackParameters(originalSpeedBeforeBoost, 1.0f)
+                        if (!wasPlayingBeforeBoost) {
+                            player.pause()
+                        }
                         hudController.hideSpeed()
                     }
 
