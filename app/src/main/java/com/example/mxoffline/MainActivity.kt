@@ -74,7 +74,6 @@ class MainActivity : ComponentActivity() {
 
     private var searchQuery = ""
     private var sortMode = 0
-    private var isRecentExpanded = false
     private lateinit var adapter: LibraryAdapter
 
     companion object {
@@ -82,7 +81,6 @@ class MainActivity : ComponentActivity() {
         private const val TAB_ALL_VIDEOS = 1
         private const val TAB_FOLDER_VIDEOS = 2
         private const val TAB_SAF = 3
-        private const val RECENT_PREVIEW_LIMIT = 4
     }
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -546,44 +544,17 @@ class MainActivity : ComponentActivity() {
 
                 val listItems = mutableListOf<LibraryListItem>()
 
-                // 1. Recent Section inside Folder tab (scrolls vertically)
+                // 1. Recent Section: Header + Horizontal Thumbnail Carousel (thumbnails only)
                 if (filteredRecent.isNotEmpty()) {
-                    val hasMore = filteredRecent.size > RECENT_PREVIEW_LIMIT
-                    val showAll = isRecentExpanded || searchQuery.isNotBlank()
-
-                    val primaryAction = if (hasMore) {
-                        if (showAll) "Show Less" else "View All (${filteredRecent.size})"
-                    } else {
-                        "Clear"
-                    }
-
-                    val onPrimaryClick: (() -> Unit) = if (hasMore) {
-                        {
-                            isRecentExpanded = !isRecentExpanded
-                            refreshCurrentDisplay()
-                        }
-                    } else {
-                        { promptClearRecent() }
-                    }
-
-                    val secondaryAction = if (hasMore) "Clear" else null
-                    val onSecondaryClick: (() -> Unit)? = if (hasMore) { { promptClearRecent() } } else null
-
                     listItems.add(
                         LibraryListItem.Header(
                             title = "RECENTLY PLAYED",
                             count = filteredRecent.size,
-                            actionText = primaryAction,
-                            onActionClick = onPrimaryClick,
-                            secondaryActionText = secondaryAction,
-                            onSecondaryActionClick = onSecondaryClick
+                            actionText = "Clear",
+                            onActionClick = { promptClearRecent() }
                         )
                     )
-
-                    val displayRecent = if (showAll) filteredRecent else filteredRecent.take(RECENT_PREVIEW_LIMIT)
-                    displayRecent.forEach { video ->
-                        listItems.add(LibraryListItem.Video(video, filteredRecent))
-                    }
+                    listItems.add(LibraryListItem.RecentCarousel(filteredRecent))
                 }
 
                 // 2. Folders Section (scrolls vertically right below Recent)

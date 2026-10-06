@@ -14,6 +14,10 @@ sealed class LibraryListItem {
         val onSecondaryActionClick: (() -> Unit)? = null
     ) : LibraryListItem()
 
+    data class RecentCarousel(
+        val videos: List<VideoItem>
+    ) : LibraryListItem()
+
     data class Video(
         val item: VideoItem,
         val playlist: List<VideoItem>
