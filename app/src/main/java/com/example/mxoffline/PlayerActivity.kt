@@ -302,13 +302,19 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
         root.addView(centerSpeedHud, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(28) })
 
-        // Floating Unlock Button
+        // Floating Unlock Button (At the top-left, not middle of screen)
         lockFloatingBtn = TextView(this).apply {
-            text = "🔒"; textSize = 24f; gravity = Gravity.CENTER
-            background = UiUtils.rounded(0xee222631.toInt(), 28, this@PlayerActivity); visibility = View.GONE
+            text = "🔒"; textSize = 22f; gravity = Gravity.CENTER
+            background = UiUtils.rounded(0xee222631.toInt(), 24, this@PlayerActivity); visibility = View.GONE
             setOnClickListener { unlockScreen() }
         }
-        root.addView(lockFloatingBtn, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(24) })
+        root.addView(
+            lockFloatingBtn,
+            FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP or Gravity.START).apply {
+                topMargin = dp(38)
+                leftMargin = dp(20)
+            }
+        )
 
         // Resume Banner
         resumeBanner = LinearLayout(this).apply {
@@ -830,7 +836,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         controlsVisible = false
         overlayContainer.visibility = View.GONE
         showLockTemporarily()
-        hudController.showQuickFeedback("Screen Locked")
     }
 
     private fun unlockScreen() {
@@ -840,7 +845,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         controlsVisible = true
         overlayContainer.visibility = View.VISIBLE
         scheduleHideControls()
-        hudController.showQuickFeedback("Screen Unlocked")
     }
 
     private fun cycleResizeMode() {
