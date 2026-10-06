@@ -41,7 +41,7 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Playback Speed**: Fine-tuned playback speeds from 0.25× to 4.0× with Sonic pitch preservation.
 - **Sleep Timer**: Auto-pause playback after 15, 30, 45, 60 minutes or at the end of the video.
 - **Background Audio Play**: Option to keep playing audio when minimized or screen turned off.
-- **Picture-in-Picture (PiP)**: Dedicated PiP button and automatic PiP on home button navigation.
+- **Picture-in-Picture (PiP)**: Dedicated PiP button and auto-PiP with persistent uninterrupted playback, interactive window controls (Play/Pause, Rewind 10s, Fast-Forward 10s), and seamless resize.
 - **In-Player Playlist**: Quick dialog listing all videos in the current folder with loop modes (Repeat All, Repeat One, Off).
 - **System Video Launcher**: Integrated with Android `VIEW` intent filter to play videos from file managers and browsers.
 
