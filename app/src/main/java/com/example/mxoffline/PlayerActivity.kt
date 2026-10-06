@@ -68,7 +68,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private lateinit var playerView: PlayerView
     private lateinit var overlayContainer: FrameLayout
     private lateinit var topBar: LinearLayout
-    private lateinit var centerControls: LinearLayout
     private lateinit var bottomBar: LinearLayout
 
     private lateinit var titleView: TextView
@@ -76,7 +75,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private lateinit var remainingTimeView: TextView
     private lateinit var seekBar: SeekBar
     private lateinit var lockFloatingBtn: TextView
-    private lateinit var playPauseCenterBtn: TextView
     private lateinit var playPauseBottomBtn: TextView
     private lateinit var resumeBanner: LinearLayout
     private lateinit var resumeText: TextView
@@ -308,13 +306,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             background = UiUtils.rounded(0xee222631.toInt(), 24, this@PlayerActivity); visibility = View.GONE
             setOnClickListener { unlockScreen() }
         }
-        root.addView(
-            lockFloatingBtn,
-            FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP or Gravity.START).apply {
-                topMargin = dp(38)
-                leftMargin = dp(20)
-            }
-        )
 
         // Resume Banner
         resumeBanner = LinearLayout(this).apply {
@@ -340,7 +331,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         persistentStatusHeader = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(4))
+            setPadding(dp(16), 0, dp(16), 0)
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(0x55000000.toInt(), Color.TRANSPARENT)
@@ -381,7 +372,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
 
         persistentStatusHeader.addView(topTimeStatusView, LinearLayout.LayoutParams(-2, -2))
-        persistentStatusHeader.addView(statusSpacer, LinearLayout.LayoutParams(0, -2, 1f))
+        persistentStatusHeader.addView(statusSpacer, LinearLayout.LayoutParams(0, dp(1), 1f))
         persistentStatusHeader.addView(batteryText, LinearLayout.LayoutParams(-2, -2))
         persistentStatusHeader.addView(clockText, LinearLayout.LayoutParams(-2, -2))
 
@@ -436,11 +427,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         overlayContainer.addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
         // Center Controls: Single play/pause button
-        centerControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        playPauseCenterBtn = roundButton("Ⅱ", 24f, dp(68), 0xffffc400.toInt(), textColor = 0xff101114.toInt()) { togglePlay() }
-        centerControls.addView(playPauseCenterBtn, LinearLayout.LayoutParams(dp(68), dp(68)))
-        overlayContainer.addView(centerControls, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-
         // Bottom Bar
         bottomBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -495,13 +481,19 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
         overlayContainer.addView(bottomBar, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         root.addView(overlayContainer, FrameLayout.LayoutParams(-1, -1))
-        root.addView(persistentStatusHeader, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        root.addView(persistentStatusHeader, FrameLayout.LayoutParams(-1, dp(32), Gravity.TOP))
+        root.addView(
+            lockFloatingBtn,
+            FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP or Gravity.START).apply {
+                topMargin = dp(42)
+                leftMargin = dp(20)
+            }
+        )
 
-        // Set touch listeners
+        // Set touch listeners - only playerView handles video gestures so all buttons remain clickable
         playerView.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
-        overlayContainer.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
-        persistentStatusHeader.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
-        root.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
+        topBar.setOnClickListener { scheduleHideControls() }
+        bottomBar.setOnClickListener { scheduleHideControls() }
 
         setContentView(root)
 
@@ -618,7 +610,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                         initAudioEffects()
                         resumeManager.checkAndApplyResume(p, uris, index)
                     } else if (state == Player.STATE_ENDED) {
-                        playPauseCenterBtn.text = "▶"
                         playPauseBottomBtn.text = "▶"
                         when (repeatMode) {
                             1 -> nextVideo()
@@ -636,7 +627,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     val symbol = if (isPlaying) "Ⅱ" else "▶"
-                    playPauseCenterBtn.text = symbol
                     playPauseBottomBtn.text = symbol
                     if (isPlaying) scheduleHideControls() else handler.removeCallbacks(hideControlsRunnable)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
