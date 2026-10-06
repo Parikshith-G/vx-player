@@ -82,6 +82,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private lateinit var resumeText: TextView
 
     // Top Header & Status info
+    private lateinit var persistentStatusHeader: LinearLayout
     private lateinit var batteryText: TextView
     private lateinit var clockText: TextView
     private lateinit var topTimeStatusView: TextView
@@ -329,27 +330,72 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         // Controls Overlay
         overlayContainer = FrameLayout(this).apply { setBackgroundColor(Color.TRANSPARENT) }
 
-        // Top Bar
-        topBar = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(6))
+        // Persistent Top Status Header (Always visible: Time done/remaining on left, Battery & Clock on right)
+        persistentStatusHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(4))
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xee000000.toInt(), 0x88000000.toInt(), Color.TRANSPARENT)
+                intArrayOf(0x55000000.toInt(), Color.TRANSPARENT)
             )
         }
 
-        // Top Header Row: [‹] [Title + Time Done/Remaining]  ...  [Battery] [Clock] [☰]
+        topTimeStatusView = TextView(this).apply {
+            text = "00:00 / 00:00"
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setShadowLayer(4f, 1f, 1f, 0xdd000000.toInt())
+            setPadding(dp(4), dp(2), dp(8), dp(2))
+            setOnClickListener {
+                topTimeStatusMode = (topTimeStatusMode + 1) % 2
+                updateStatusHeader()
+            }
+        }
+
+        val statusSpacer = View(this)
+
+        batteryText = TextView(this).apply {
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setShadowLayer(4f, 1f, 1f, 0xdd000000.toInt())
+            setPadding(dp(4), dp(2), dp(6), dp(2))
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        clockText = TextView(this).apply {
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setShadowLayer(4f, 1f, 1f, 0xdd000000.toInt())
+            setPadding(dp(4), dp(2), dp(4), dp(2))
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        persistentStatusHeader.addView(topTimeStatusView, LinearLayout.LayoutParams(-2, -2))
+        persistentStatusHeader.addView(statusSpacer, LinearLayout.LayoutParams(0, -2, 1f))
+        persistentStatusHeader.addView(batteryText, LinearLayout.LayoutParams(-2, -2))
+        persistentStatusHeader.addView(clockText, LinearLayout.LayoutParams(-2, -2))
+
+        // Top Bar (Controls: Back, Title, Hamburger menu, and Circular quick action buttons)
+        topBar = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(32), dp(12), dp(6))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xee000000.toInt(), 0x77000000.toInt(), Color.TRANSPARENT)
+            )
+        }
+
+        // Top Controls Row: [‹] [Title] [☰]
         val headerRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         val backBtn = iconButton("‹", 26f) { finish() }
 
-        val titleAndStatusLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(6), 0, dp(8), 0)
-        }
         titleView = TextView(this).apply {
             text = "Video"
             textSize = 15f
@@ -357,40 +403,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             setTextColor(Color.WHITE)
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(dp(8), 0, dp(8), 0)
         }
-        topTimeStatusView = TextView(this).apply {
-            text = "00:00 / 00:00"
-            textSize = 11f
-            setTextColor(0xffbbbec6.toInt())
-            setPadding(0, dp(2), 0, 0)
-            setOnClickListener {
-                topTimeStatusMode = (topTimeStatusMode + 1) % 2
-                updateStatusHeader()
-            }
-        }
-        titleAndStatusLayout.addView(titleView)
-        titleAndStatusLayout.addView(topTimeStatusView)
 
-        batteryText = TextView(this).apply {
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(0xffd0d3da.toInt())
-            setPadding(dp(4), dp(4), dp(6), dp(4))
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        clockText = TextView(this).apply {
-            textSize = 12f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(0xffd0d3da.toInt())
-            setPadding(dp(4), dp(4), dp(8), dp(4))
-            gravity = Gravity.CENTER_VERTICAL
-        }
         val hamburgerBtn = iconButton("☰", 22f) { showHamburgerMenu() }
 
         headerRow.addView(backBtn, LinearLayout.LayoutParams(dp(40), dp(40)))
-        headerRow.addView(titleAndStatusLayout, LinearLayout.LayoutParams(0, -2, 1f))
-        headerRow.addView(batteryText, LinearLayout.LayoutParams(-2, -2))
-        headerRow.addView(clockText, LinearLayout.LayoutParams(-2, -2))
+        headerRow.addView(titleView, LinearLayout.LayoutParams(0, -2, 1f))
         headerRow.addView(hamburgerBtn, LinearLayout.LayoutParams(dp(40), dp(40)))
         topBar.addView(headerRow, LinearLayout.LayoutParams(-1, -2))
 
@@ -470,10 +489,12 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
         overlayContainer.addView(bottomBar, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         root.addView(overlayContainer, FrameLayout.LayoutParams(-1, -1))
+        root.addView(persistentStatusHeader, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
         // Set touch listeners
         playerView.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
         overlayContainer.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
+        persistentStatusHeader.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
         root.setOnTouchListener { _, event -> gestureController.handleTouchEvent(event) }
 
         setContentView(root)
@@ -705,7 +726,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     override fun isLocked(): Boolean = isScreenLocked
 
     override fun onSingleTap() {
-        toggleControls()
+        if (isScreenLocked) {
+            showLockTemporarily()
+        } else {
+            toggleControls()
+        }
     }
 
     override fun onSeekBy(deltaMs: Long, isForward: Boolean) {
@@ -790,15 +815,26 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         handler.postDelayed(hideControlsRunnable, 4500)
     }
 
+    private val hideLockRunnable = Runnable {
+        lockFloatingBtn.visibility = View.GONE
+    }
+
+    private fun showLockTemporarily() {
+        handler.removeCallbacks(hideLockRunnable)
+        lockFloatingBtn.visibility = View.VISIBLE
+        handler.postDelayed(hideLockRunnable, 3000L)
+    }
+
     private fun lockScreen() {
         isScreenLocked = true
         controlsVisible = false
         overlayContainer.visibility = View.GONE
-        lockFloatingBtn.visibility = View.VISIBLE
+        showLockTemporarily()
         hudController.showQuickFeedback("Screen Locked")
     }
 
     private fun unlockScreen() {
+        handler.removeCallbacks(hideLockRunnable)
         isScreenLocked = false
         lockFloatingBtn.visibility = View.GONE
         controlsVisible = true
@@ -1254,6 +1290,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
         runCatching {
             overlayContainer.visibility = View.GONE
+            if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.GONE
+            if (::lockFloatingBtn.isInitialized) lockFloatingBtn.visibility = View.GONE
             if (::player.isInitialized && !player.isPlaying && player.playbackState == Player.STATE_READY) {
                 player.play()
             }
@@ -1263,6 +1301,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             }
         }.onFailure {
             overlayContainer.visibility = View.VISIBLE
+            if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.VISIBLE
             Toast.makeText(this, "Cannot enter PiP: ${it.localizedMessage}", Toast.LENGTH_SHORT).show()
         }
     }
@@ -1320,12 +1359,15 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
         if (isInPip) {
             overlayContainer.visibility = View.GONE
+            if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.GONE
+            if (::lockFloatingBtn.isInitialized) lockFloatingBtn.visibility = View.GONE
             if (::player.isInitialized && !player.isPlaying && player.playbackState == Player.STATE_READY) {
                 player.play()
             }
             updatePipParams()
         } else {
             hideSystemBars()
+            if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.VISIBLE
             if (controlsVisible) overlayContainer.visibility = View.VISIBLE
             scheduleHideControls()
         }
