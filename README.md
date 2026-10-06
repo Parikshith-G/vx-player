@@ -7,7 +7,7 @@ A powerful, native Android video player focused entirely on local and offline pl
 ### 📁 Media Library & Discovery
 - **Automatic Device Video Scanning**: Discovers and indexes all videos on device storage (internal and SD card) via MediaStore API.
 - **Folder Grouping**: Automatically groups videos by folder (e.g., Camera, Download, Movies, WhatsApp) with video count badges.
-- **Integrated Recently Played Section**: Recently watched videos are displayed directly as a vertical scrollable section inside the Folders tab with watch progress indicators, View All/Collapse toggle, and Clear history options.
+- **Horizontal Recently Played Carousel**: Recently watched videos are presented as a clean horizontal scrolling carousel at the top of the Folders tab, showcasing video thumbnails with watch progress indicators and duration badges (without cluttering title text).
 - **Folders & All Videos Tabs**: Clean 2-tab navigation between folder grouping and flat library list.
 - **Asynchronous Thumbnail Loading**: Fast, smooth scrolling with custom LRU memory cache and background thumbnail generator.
 - **Duration & Resolution Badges**: Displays duration (`04:15`) on thumbnails and resolution indicators (4K, 1080p, 720p).
