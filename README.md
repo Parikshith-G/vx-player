@@ -16,14 +16,28 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **SAF & File Picker**: Grant folder access via system picker (Storage Access Framework) or pick single videos.
 - **Real-Time Search & Sorting**: Search by video/folder name; sort by Name, Date, Size, or Duration.
 
-### 🎬 Player & Iconic MX Gestures
+### 🎬 Player & Iconic MX Controls
+- **Top Status Header**:
+  - **Top Left**: Real-time elapsed time and total / remaining time display (`04:15 / 1:20:00` or `04:15 (-1:15:45)`). Tap to toggle between total and remaining time.
+  - **Top Right**: Real-time battery percentage indicator (`🔋 85%`), current wall-clock time (`10:30 PM`), and hamburger menu (`☰`).
+- **Top Circular Quick Action Buttons**:
+  - Horizontal scrolling row of customizable quick action buttons:
+    - Playback Speed (`1.0×`)
+    - Orientation Lock (`🔄 Auto / Land / Port / Video`)
+    - Fit / Aspect Ratio (`📐 Fit / Fill / Zoom`)
+    - In-Player Playlist (`📑 List`)
+    - Audio Tracks (`🎵 Audio`)
+    - Subtitles (`💬 Sub`)
+    - HW / SW Decoder (`HW / SW`)
+    - Sleep Timer (`⏱ Timer`)
+  - **Fully Customizable**: Tap the hamburger menu (`☰`) -> "Customize Quick Buttons" to select which circular buttons appear.
+- **MX Player Bottom Action Controls**:
+  - Exact sequence: `[🔒 Lock]` `[⟲ 5s Seek Back]` `[⏮ Prev Video]` `[▶/Ⅱ Play/Pause]` `[⏭ Next Video]` `[5s ⟳ Seek Forward]` `[⧉ PiP]`.
 - **Horizontal Swipe Seek**: Real-time seek scrub HUD displaying target timestamp, `[±offset]`, and mini scrubber. Smooth seek upon finger release.
 - **Vertical Left Swipe**: Real-time smooth brightness control (0% to 100%) with visual HUD indicator.
 - **Vertical Right Swipe & Volume Boost**: Real-time volume control from 0% to 100% plus **200% Volume Boost** using Android's `LoudnessEnhancer`.
-- **Double Tap Actions**:
-  - Left side: Rewind 10s (`⟲ 10s`)
-  - Right side: Fast-forward 10s (`10s ⟳`)
-  - Center: Play / Pause toggle
+- **Top Edge Gesture Exclusion**: Swipes starting near the top of the screen (top 35dp) are excluded, allowing the system notification drawer to be pulled down without unintentionally scrubbing brightness or volume.
+- **Double Tap Action**: Double tap toggles Play / Pause. Seeking is restricted to the dedicated `±5s` buttons and seekbar to prevent accidental seeks.
 - **Hold to Boost (2.0×)**: Long-press anywhere on the screen temporarily accelerates playback to 2.0× speed; release to restore.
 - **Single Tap**: Toggle immersive playback controls overlay (auto-hides after 4.5s of inactivity).
 - **Screen Lock (Touch Lock)**: Lock button in controls hides all overlays and prevents accidental touches. A floating lock icon allows unlocking.
@@ -38,7 +52,7 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Smart Resume**: Automatically prompts and resumes partially watched videos with a floating bottom pill (`Resumed from 03:45 [Restart]`).
 - **Aspect Ratio Control**: Toggle between Fit (Letterbox), Stretch (Fill), and Crop (Zoom).
 - **Orientation Modes**: Auto-rotate (Sensor), Landscape, Portrait, and Match Video Aspect Ratio.
-- **Playback Speed**: Fine-tuned playback speeds from 0.25× to 4.0× with Sonic pitch preservation.
+- **Playback Speed Persistence**: Fine-tuned playback speeds from 0.25× to 4.0× with Sonic pitch preservation; your chosen speed is remembered and restored across app restarts.
 - **Sleep Timer**: Auto-pause playback after 15, 30, 45, 60 minutes or at the end of the video.
 - **Background Audio Play**: Option to keep playing audio when minimized or screen turned off.
 - **Picture-in-Picture (PiP)**: Dedicated PiP button and auto-PiP with persistent uninterrupted playback, interactive window controls (Play/Pause, Rewind 10s, Fast-Forward 10s), and seamless resize.
