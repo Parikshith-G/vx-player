@@ -1,14 +1,19 @@
 package com.example.mxoffline
 
+import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Icon
 import android.media.AudioManager
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
@@ -31,6 +36,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
@@ -71,6 +77,38 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private lateinit var playPauseBottomBtn: TextView
     private lateinit var resumeBanner: LinearLayout
     private lateinit var resumeText: TextView
+
+    companion object {
+        private const val ACTION_PIP_PLAY = "com.example.mxoffline.PIP_PLAY"
+        private const val ACTION_PIP_PAUSE = "com.example.mxoffline.PIP_PAUSE"
+        private const val ACTION_PIP_REWIND = "com.example.mxoffline.PIP_REWIND"
+        private const val ACTION_PIP_FORWARD = "com.example.mxoffline.PIP_FORWARD"
+    }
+
+    private val pipReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (!::player.isInitialized) return
+            when (intent?.action) {
+                ACTION_PIP_PLAY -> {
+                    player.play()
+                    updatePipParams()
+                }
+                ACTION_PIP_PAUSE -> {
+                    player.pause()
+                    updatePipParams()
+                }
+                ACTION_PIP_REWIND -> {
+                    val pos = (player.currentPosition - 10000L).coerceAtLeast(0L)
+                    player.seekTo(pos)
+                }
+                ACTION_PIP_FORWARD -> {
+                    val duration = player.duration
+                    val target = player.currentPosition + 10000L
+                    player.seekTo(if (duration > 0) target.coerceAtMost(duration) else target)
+                }
+            }
+        }
+    }
 
     private val handler = Handler(Looper.getMainLooper())
     private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
@@ -126,6 +164,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         buildUi()
         initPlayer()
         initComponents()
+        registerPipReceiver()
         hideSystemBars()
         scheduleHideControls()
         handler.post(progressTracker)
@@ -495,6 +534,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     playPauseCenterBtn.text = symbol
                     playPauseBottomBtn.text = symbol
                     if (isPlaying) scheduleHideControls() else handler.removeCallbacks(hideControlsRunnable)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
+                        updatePipParams()
+                    }
                 }
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -828,6 +870,113 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
     }
 
+    private fun registerPipReceiver() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val filter = IntentFilter().apply {
+                addAction(ACTION_PIP_PLAY)
+                addAction(ACTION_PIP_PAUSE)
+                addAction(ACTION_PIP_REWIND)
+                addAction(ACTION_PIP_FORWARD)
+            }
+            ContextCompat.registerReceiver(this, pipReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        }
+    }
+
+    private fun unregisterPipReceiver() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching { unregisterReceiver(pipReceiver) }
+        }
+    }
+
+    private fun buildPipParams(): PictureInPictureParams? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
+        val format = if (::player.isInitialized) player.videoFormat else null
+        val rational = if (format != null && format.width > 0 && format.height > 0) {
+            val ratio = format.width.toFloat() / format.height.toFloat()
+            if (ratio in 0.42f..2.38f) Rational(format.width, format.height) else Rational(16, 9)
+        } else Rational(16, 9)
+
+        val builder = PictureInPictureParams.Builder().setAspectRatio(rational)
+
+        val isPlaying = ::player.isInitialized && player.isPlaying
+        val actions = ArrayList<RemoteAction>()
+
+        // 1. Rewind 10s
+        val rewindIntent = PendingIntent.getBroadcast(
+            this, 1, Intent(ACTION_PIP_REWIND).setPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        actions.add(
+            RemoteAction(
+                Icon.createWithResource(this, android.R.drawable.ic_media_rew),
+                "Rewind",
+                "Rewind 10 seconds",
+                rewindIntent
+            )
+        )
+
+        // 2. Play / Pause
+        if (isPlaying) {
+            val pauseIntent = PendingIntent.getBroadcast(
+                this, 2, Intent(ACTION_PIP_PAUSE).setPackage(packageName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            actions.add(
+                RemoteAction(
+                    Icon.createWithResource(this, android.R.drawable.ic_media_pause),
+                    "Pause",
+                    "Pause playback",
+                    pauseIntent
+                )
+            )
+        } else {
+            val playIntent = PendingIntent.getBroadcast(
+                this, 3, Intent(ACTION_PIP_PLAY).setPackage(packageName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            actions.add(
+                RemoteAction(
+                    Icon.createWithResource(this, android.R.drawable.ic_media_play),
+                    "Play",
+                    "Play video",
+                    playIntent
+                )
+            )
+        }
+
+        // 3. Forward 10s
+        val forwardIntent = PendingIntent.getBroadcast(
+            this, 4, Intent(ACTION_PIP_FORWARD).setPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        actions.add(
+            RemoteAction(
+                Icon.createWithResource(this, android.R.drawable.ic_media_ff),
+                "Forward",
+                "Forward 10 seconds",
+                forwardIntent
+            )
+        )
+
+        builder.setActions(actions)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(true)
+            builder.setSeamlessResizeEnabled(true)
+        }
+
+        return builder.build()
+    }
+
+    private fun updatePipParams() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching {
+                val params = buildPipParams() ?: return
+                setPictureInPictureParams(params)
+            }
+        }
+    }
+
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             Toast.makeText(this, "PiP requires Android 8.0+", Toast.LENGTH_SHORT).show()
@@ -835,16 +984,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
         runCatching {
             overlayContainer.visibility = View.GONE
-            val format = player.videoFormat
-            val rational = if (format != null && format.width > 0 && format.height > 0) {
-                val ratio = format.width.toFloat() / format.height.toFloat()
-                if (ratio in 0.42f..2.38f) Rational(format.width, format.height) else Rational(16, 9)
-            } else Rational(16, 9)
-
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(rational)
-                .build()
-            enterPictureInPictureMode(params)
+            if (::player.isInitialized && !player.isPlaying && player.playbackState == Player.STATE_READY) {
+                player.play()
+            }
+            val params = buildPipParams()
+            if (params != null) {
+                enterPictureInPictureMode(params)
+            }
         }.onFailure {
             overlayContainer.visibility = View.VISIBLE
             Toast.makeText(this, "Cannot enter PiP: ${it.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -866,26 +1012,49 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     override fun onResume() {
         super.onResume()
         hideSystemBars()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
+            updatePipParams()
+        }
     }
 
     override fun onPause() {
         super.onPause()
         if (::player.isInitialized) {
             resumeManager.savePosition(player, uris, index)
-            if (!backgroundPlayEnabled) player.pause()
+            val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode
+            if (!inPip && !backgroundPlayEnabled) {
+                player.pause()
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (::player.isInitialized) {
+            resumeManager.savePosition(player, uris, index)
+            val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode
+            if (!inPip && !backgroundPlayEnabled) {
+                player.pause()
+            }
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && ::player.isInitialized && player.isPlaying) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && ::player.isInitialized) {
             enterPipMode()
         }
     }
 
     override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
-        if (!isInPip) {
+        if (isInPip) {
+            overlayContainer.visibility = View.GONE
+            if (::player.isInitialized && !player.isPlaying && player.playbackState == Player.STATE_READY) {
+                player.play()
+            }
+            updatePipParams()
+        } else {
             hideSystemBars()
             if (controlsVisible) overlayContainer.visibility = View.VISIBLE
             scheduleHideControls()
@@ -894,6 +1063,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        unregisterPipReceiver()
         if (::player.isInitialized) {
             resumeManager.savePosition(player, uris, index)
             runCatching { loudnessEnhancer?.release() }
