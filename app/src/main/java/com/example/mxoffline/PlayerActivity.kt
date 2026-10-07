@@ -177,6 +177,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private var repeatMode = 0
     private var preferSoftwareDecoder = false
     private var backgroundPlayEnabled = false
+    private var enteredPipMode = false
     private var subtitleFontSizeSp = 18f
     private var isUserTrackingSeek = false
     private var loudnessEnhancer: LoudnessEnhancer? = null
@@ -1551,9 +1552,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             }
             val params = buildPipParams()
             if (params != null) {
+                enteredPipMode = true
                 enterPictureInPictureMode(params)
             }
         }.onFailure {
+            enteredPipMode = false
             overlayContainer.visibility = View.VISIBLE
             if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.VISIBLE
             Toast.makeText(this, "Cannot enter PiP: ${it.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -1574,6 +1577,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     override fun onResume() {
         super.onResume()
+        enteredPipMode = false
         hideSystemBars()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
             updatePipParams()
@@ -1596,7 +1600,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         if (::player.isInitialized) {
             resumeManager.savePosition(player, uris, index)
             val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode
-            if (!inPip && !backgroundPlayEnabled) {
+            if (inPip || enteredPipMode) {
+                enteredPipMode = false
+                player.pause()
+                finish()
+            } else if (!backgroundPlayEnabled) {
                 player.pause()
             }
         }
@@ -1612,6 +1620,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
         if (isInPip) {
+            enteredPipMode = true
             overlayContainer.visibility = View.GONE
             if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.GONE
             if (::lockFloatingBtn.isInitialized) lockFloatingBtn.visibility = View.GONE
@@ -1624,6 +1633,16 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.VISIBLE
             if (controlsVisible) overlayContainer.visibility = View.VISIBLE
             scheduleHideControls()
+
+            handler.postDelayed({
+                if (lifecycle.currentState != androidx.lifecycle.Lifecycle.State.RESUMED && !isFinishing) {
+                    if (::player.isInitialized) {
+                        resumeManager.savePosition(player, uris, index)
+                        player.pause()
+                    }
+                    finish()
+                }
+            }, 250)
         }
     }
 
