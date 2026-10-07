@@ -180,6 +180,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private var preferSoftwareDecoder = false
     private var backgroundPlayEnabled = false
     private var enteredPipMode = false
+    private var pipDismissRunnable: Runnable? = null
     private var subtitleFontSizeSp = 18f
     private var isUserTrackingSeek = false
     private var loudnessEnhancer: LoudnessEnhancer? = null
@@ -796,7 +797,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                         playPauseBottomBtn.text = "▶"
                         when (repeatMode) {
                             1 -> nextVideo()
-                            2 -> { p.seekTo(0); p.play() }
+                            2 -> { p.seekTo(0); p.prepare(); p.play() }
                             else -> {
                                 if (index < uris.lastIndex) nextVideo()
                                 else {
@@ -815,6 +816,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
                         updatePipParams()
                     }
+                }
+
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    playPauseBottomBtn.text = "▶"
+                    val errorName = names.getOrNull(index) ?: "Video"
+                    hudController.showQuickFeedback("Playback error")
+                    Toast.makeText(
+                        this@PlayerActivity,
+                        "Cannot play: $errorName (corrupted or unsupported format)",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -968,7 +980,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private fun togglePlay() {
         if (!::player.isInitialized) return
         if (player.playbackState == Player.STATE_ENDED) {
-            player.seekTo(0)
+            player.seekTo(0L)
+            player.prepare()
+            player.play()
+            return
+        }
+        if (player.playerError != null || player.playbackState == Player.STATE_IDLE) {
+            player.prepare()
             player.play()
             return
         }
@@ -989,12 +1007,16 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         if (!::player.isInitialized || uris.isEmpty()) return
         if (index < uris.lastIndex) {
             index++
-            player.seekTo(index, 0)
+            player.seekTo(index, 0L)
+            player.prepare()
+            player.play()
             updateTitle()
             updateMarkDoneButtonState()
         } else if (repeatMode == 1) {
             index = 0
-            player.seekTo(0, 0)
+            player.seekTo(0, 0L)
+            player.prepare()
+            player.play()
             updateTitle()
             updateMarkDoneButtonState()
         } else {
@@ -1004,13 +1026,21 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     private fun previousVideo() {
         if (!::player.isInitialized || uris.isEmpty()) return
-        if (player.currentPosition > 3500) {
-            player.seekTo(0)
+        if (player.currentPosition > 3500 && player.playbackState != Player.STATE_IDLE && player.playerError == null) {
+            player.seekTo(0L)
+            player.prepare()
+            player.play()
         } else if (index > 0) {
             index--
-            player.seekTo(index, 0)
+            player.seekTo(index, 0L)
+            player.prepare()
+            player.play()
             updateTitle()
             updateMarkDoneButtonState()
+        } else {
+            player.seekTo(0L)
+            player.prepare()
+            player.play()
         }
     }
 
@@ -1165,8 +1195,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             repeatMode = repeatMode,
             onVideoSelected = { which ->
                 index = which
-                player.seekTo(index, 0)
+                player.seekTo(index, 0L)
+                player.prepare()
+                player.play()
                 updateTitle()
+                updateMarkDoneButtonState()
             },
             onCycleRepeatMode = {
                 repeatMode = (repeatMode + 1) % 3
@@ -1718,8 +1751,14 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     override fun onResume() {
         super.onResume()
+        pipDismissRunnable?.let { handler.removeCallbacks(it) }
+        pipDismissRunnable = null
         enteredPipMode = false
         hideSystemBars()
+        if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.VISIBLE
+        if (::lockFloatingBtn.isInitialized && isScreenLocked) lockFloatingBtn.visibility = View.VISIBLE
+        overlayContainer.visibility = if (controlsVisible) View.VISIBLE else View.GONE
+        scheduleHideControls()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
             updatePipParams()
         }
@@ -1741,12 +1780,14 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         if (::player.isInitialized) {
             resumeManager.savePosition(player, uris, index)
             val inPip = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode
-            if (inPip || enteredPipMode) {
-                enteredPipMode = false
-                player.pause()
-                finish()
-            } else if (!backgroundPlayEnabled) {
-                player.pause()
+            if (!inPip) {
+                if (!backgroundPlayEnabled) {
+                    player.pause()
+                }
+                if (enteredPipMode && !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                    enteredPipMode = false
+                    finish()
+                }
             }
         }
     }
@@ -1760,6 +1801,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
+        pipDismissRunnable?.let { handler.removeCallbacks(it) }
+        pipDismissRunnable = null
+
         if (isInPip) {
             enteredPipMode = true
             overlayContainer.visibility = View.GONE
@@ -1772,26 +1816,33 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         } else {
             hideSystemBars()
             if (::persistentStatusHeader.isInitialized) persistentStatusHeader.visibility = View.VISIBLE
-            if (controlsVisible) overlayContainer.visibility = View.VISIBLE
+            overlayContainer.visibility = View.VISIBLE
+            controlsVisible = true
             scheduleHideControls()
 
-            handler.postDelayed({
-                if (lifecycle.currentState != androidx.lifecycle.Lifecycle.State.RESUMED && !isFinishing) {
+            val dismissTask = Runnable {
+                if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) && !isFinishing) {
+                    enteredPipMode = false
                     if (::player.isInitialized) {
                         resumeManager.savePosition(player, uris, index)
                         player.pause()
                     }
                     finish()
                 }
-            }, 250)
+            }
+            pipDismissRunnable = dismissTask
+            handler.postDelayed(dismissTask, 1500)
         }
     }
 
     override fun onDestroy() {
+        pipDismissRunnable?.let { handler.removeCallbacks(it) }
+        pipDismissRunnable = null
         handler.removeCallbacksAndMessages(null)
         unregisterPipReceiver()
         if (::player.isInitialized) {
             resumeManager.savePosition(player, uris, index)
+            player.pause()
             runCatching { loudnessEnhancer?.release() }
             playerView.player = null
             player.release()
