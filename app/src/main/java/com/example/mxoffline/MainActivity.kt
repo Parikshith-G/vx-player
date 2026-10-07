@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
         window.navigationBarColor = 0xff0f1115.toInt()
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
 
+        sortMode = prefs.getInt("sort_mode", 0)
         buildScreen()
         setupBackNavigation()
         checkPermissionsAndLoad()
@@ -541,6 +542,7 @@ class MainActivity : ComponentActivity() {
                 val filteredFolders = deviceFolders.filter {
                     searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
                 }
+                val sortedFolders = sortFolders(filteredFolders)
 
                 val listItems = mutableListOf<LibraryListItem>()
 
@@ -558,16 +560,16 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // 2. Folders Section (scrolls vertically right below Recent)
-                if (filteredFolders.isNotEmpty()) {
+                if (sortedFolders.isNotEmpty()) {
                     if (filteredRecent.isNotEmpty()) {
                         listItems.add(
                             LibraryListItem.Header(
                                 title = "FOLDERS",
-                                count = filteredFolders.size
+                                count = sortedFolders.size
                             )
                         )
                     }
-                    filteredFolders.forEach { folder ->
+                    sortedFolders.forEach { folder ->
                         listItems.add(LibraryListItem.Folder(folder))
                     }
                 }
@@ -576,11 +578,11 @@ class MainActivity : ComponentActivity() {
 
                 val totalCountText = buildString {
                     if (filteredRecent.isNotEmpty()) append("${filteredRecent.size} recent · ")
-                    append("${filteredFolders.size} folders")
+                    append("${sortedFolders.size} folders")
                 }
                 resultCount.text = totalCountText
 
-                val isEmpty = filteredRecent.isEmpty() && filteredFolders.isEmpty()
+                val isEmpty = filteredRecent.isEmpty() && sortedFolders.isEmpty()
                 emptyView.text = if (isEmpty) {
                     if (searchQuery.isNotBlank()) "No matching folders or videos found"
                     else "No video folders found\n\nGrant storage access or open a folder above."
@@ -613,9 +615,25 @@ class MainActivity : ComponentActivity() {
             TAB_SAF -> {
                 val filtered = safEntries.filter {
                     searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
-                }.sortedWith(compareBy<SafEntry> { !it.isDirectory }.thenBy { it.name.lowercase() })
+                }
+                val sorted = when (sortMode) {
+                    1 -> filtered.sortedWith(
+                        compareBy<SafEntry> { !it.isDirectory }
+                            .thenByDescending { it.modified ?: 0L }
+                            .thenBy { it.name.lowercase() }
+                    )
+                    2 -> filtered.sortedWith(
+                        compareBy<SafEntry> { !it.isDirectory }
+                            .thenByDescending { it.sizeBytes ?: 0L }
+                            .thenBy { it.name.lowercase() }
+                    )
+                    else -> filtered.sortedWith(
+                        compareBy<SafEntry> { !it.isDirectory }
+                            .thenBy { it.name.lowercase() }
+                    )
+                }
 
-                adapter.submitSaf(filtered)
+                adapter.submitSaf(sorted)
                 resultCount.text = "${filtered.size} items"
                 emptyView.text = if (filtered.isEmpty()) "This folder is empty" else ""
                 emptyView.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
@@ -623,21 +641,54 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun sortFolders(list: List<FolderItem>): List<FolderItem> {
+        return when (sortMode) {
+            1 -> list.sortedWith(
+                compareByDescending<FolderItem> { folder -> folder.videos.maxOfOrNull { it.dateModified } ?: 0L }
+                    .thenBy { it.name.lowercase() }
+            )
+            2 -> list.sortedWith(
+                compareByDescending<FolderItem> { folder -> folder.videos.sumOf { it.sizeBytes } }
+                    .thenBy { it.name.lowercase() }
+            )
+            3 -> list.sortedWith(
+                compareByDescending<FolderItem> { folder -> folder.videos.sumOf { it.durationMs } }
+                    .thenBy { it.name.lowercase() }
+            )
+            else -> list.sortedBy { it.name.lowercase() }
+        }
+    }
+
     private fun sortVideos(list: List<VideoItem>): List<VideoItem> {
         return when (sortMode) {
-            1 -> list.sortedByDescending { it.dateModified }
-            2 -> list.sortedByDescending { it.sizeBytes }
-            3 -> list.sortedByDescending { it.durationMs }
+            1 -> list.sortedWith(
+                compareByDescending<VideoItem> { it.dateModified }
+                    .thenBy { it.name.lowercase() }
+            )
+            2 -> list.sortedWith(
+                compareByDescending<VideoItem> { it.sizeBytes }
+                    .thenBy { it.name.lowercase() }
+            )
+            3 -> list.sortedWith(
+                compareByDescending<VideoItem> { it.durationMs }
+                    .thenBy { it.name.lowercase() }
+            )
             else -> list.sortedBy { it.name.lowercase() }
         }
     }
 
     private fun showSortMenu() {
-        val options = arrayOf("Sort by Name (A-Z)", "Sort by Date (Newest)", "Sort by Size (Largest)", "Sort by Duration (Longest)")
+        val options = arrayOf(
+            "Sort by Name (A-Z)",
+            "Sort by Date (Newest)",
+            "Sort by Size (Largest)",
+            "Sort by Duration (Longest)"
+        )
         AlertDialog.Builder(this)
-            .setTitle("Sort Videos")
+            .setTitle("Sort Folders & Videos")
             .setSingleChoiceItems(options, sortMode) { dialog, which ->
                 sortMode = which
+                prefs.edit().putInt("sort_mode", sortMode).apply()
                 refreshCurrentDisplay()
                 dialog.dismiss()
             }
