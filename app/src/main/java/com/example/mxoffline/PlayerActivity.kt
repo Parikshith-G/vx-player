@@ -82,6 +82,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private lateinit var seekBar: SeekBar
     private lateinit var lockFloatingBtn: TextView
     private lateinit var playPauseBottomBtn: TextView
+    private lateinit var markDoneBtn: TextView
     private lateinit var resumeBanner: LinearLayout
     private lateinit var resumeText: TextView
 
@@ -550,6 +551,12 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         setupHoldToContinuousSeek(nextBtn, isForward = true) {
             nextVideo()
         }
+        markDoneBtn = actionTextButton("✔") {
+            toggleMarkCurrentVideoAsSeen()
+        }.apply {
+            textSize = 20f
+            setTextColor(0xff00e676.toInt())
+        }
         val seekFwd5Btn = actionTextButton("5s ⟳") {}
         setupHoldToContinuousSeek(seekFwd5Btn, isForward = true) {
             seekBy(5_000)
@@ -564,6 +571,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         actionsRow.addView(prevBtn, actionLp())
         actionsRow.addView(playPauseBottomBtn, actionLp())
         actionsRow.addView(nextBtn, actionLp())
+        actionsRow.addView(markDoneBtn, actionLp())
         actionsRow.addView(seekFwd5Btn, actionLp())
         actionsRow.addView(pipBtn, actionLp())
         bottomBar.addView(actionsRow)
@@ -584,6 +592,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         topBar.setOnClickListener { scheduleHideControls() }
         bottomBar.setOnClickListener { scheduleHideControls() }
 
+        updateMarkDoneButtonState()
         setContentView(root)
 
         // Initialize HUD Controller
@@ -813,6 +822,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     if (currentIdx in uris.indices) {
                         index = currentIdx
                         updateTitle()
+                        updateMarkDoneButtonState()
                     }
                 }
             })
@@ -827,6 +837,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
         updateTitle()
         applyOrientation()
+        updateMarkDoneButtonState()
     }
 
     private fun initAudioEffects() {
@@ -857,10 +868,39 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
     }
 
+    private fun isCurrentVideoSeen(): Boolean {
+        if (uris.isEmpty() || index !in uris.indices) return false
+        val currentUri = uris[index]
+        return seenPrefs.contains("seen_$currentUri")
+    }
+
+    private fun updateMarkDoneButtonState() {
+        if (!::markDoneBtn.isInitialized) return
+        val isSeen = isCurrentVideoSeen()
+        markDoneBtn.setTextColor(0xff00e676.toInt())
+        markDoneBtn.alpha = if (isSeen) 1.0f else 0.45f
+    }
+
+    private fun toggleMarkCurrentVideoAsSeen() {
+        if (uris.isEmpty() || index !in uris.indices) return
+        val currentUri = uris[index]
+        val key = "seen_$currentUri"
+        if (seenPrefs.contains(key)) {
+            seenPrefs.edit().remove(key).apply()
+            updateMarkDoneButtonState()
+            hudController.showQuickFeedback("Removed from Seen")
+        } else {
+            seenPrefs.edit().putLong(key, System.currentTimeMillis()).apply()
+            updateMarkDoneButtonState()
+            hudController.showQuickFeedback("Marked as Seen ✓")
+        }
+    }
+
     private fun markCurrentVideoAsSeen() {
         if (uris.isEmpty() || index !in uris.indices) return
         val currentUri = uris[index]
         seenPrefs.edit().putLong("seen_$currentUri", System.currentTimeMillis()).apply()
+        updateMarkDoneButtonState()
     }
 
     private fun updateTitle() {
@@ -951,10 +991,12 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             index++
             player.seekTo(index, 0)
             updateTitle()
+            updateMarkDoneButtonState()
         } else if (repeatMode == 1) {
             index = 0
             player.seekTo(0, 0)
             updateTitle()
+            updateMarkDoneButtonState()
         } else {
             Toast.makeText(this, "End of playlist", Toast.LENGTH_SHORT).show()
         }
@@ -968,6 +1010,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             index--
             player.seekTo(index, 0)
             updateTitle()
+            updateMarkDoneButtonState()
         }
     }
 
@@ -1425,6 +1468,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         player.seekTo(index, 0)
         player.play()
         updateTitle()
+        updateMarkDoneButtonState()
         hudController.showQuickFeedback("Deleted: $deletedName")
     }
 
