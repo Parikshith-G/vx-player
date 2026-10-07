@@ -12,7 +12,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
+import androidx.activity.result.IntentSenderRequest
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
     private val prefs by lazy { getSharedPreferences("library", MODE_PRIVATE) }
     private val resumePrefs by lazy { getSharedPreferences("player_resume", MODE_PRIVATE) }
+    private val seenPrefs by lazy { getSharedPreferences("player_seen", MODE_PRIVATE) }
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -59,6 +62,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var tabFolders: TextView
     private lateinit var tabAllVideos: TextView
+    private lateinit var tabSeen: TextView
 
     private var currentTab = TAB_FOLDERS
     private var allDeviceVideos = listOf<VideoItem>()
@@ -81,6 +85,19 @@ class MainActivity : ComponentActivity() {
         private const val TAB_ALL_VIDEOS = 1
         private const val TAB_FOLDER_VIDEOS = 2
         private const val TAB_SAF = 3
+        private const val TAB_SEEN = 4
+    }
+
+    private var pendingBatchDeleteVideos = listOf<VideoItem>()
+    private val batchDeleteLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            onBatchDeleteSuccess(pendingBatchDeleteVideos)
+        } else {
+            Toast.makeText(this, "Batch delete cancelled", Toast.LENGTH_SHORT).show()
+        }
+        pendingBatchDeleteVideos = emptyList()
     }
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -301,15 +318,17 @@ class MainActivity : ComponentActivity() {
         permissionBanner.addView(grantBtn)
         root.addView(permissionBanner, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
 
-        // Tab Bar (Folders & All Videos)
+        // Tab Bar (Folders, All Videos, Seen)
         val tabLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(12), 0, dp(4))
         }
         tabFolders = tabItem("FOLDERS") { selectTab(TAB_FOLDERS) }
         tabAllVideos = tabItem("ALL VIDEOS") { selectTab(TAB_ALL_VIDEOS) }
+        tabSeen = tabItem("SEEN") { selectTab(TAB_SEEN) }
         tabLayout.addView(tabFolders, LinearLayout.LayoutParams(0, dp(38), 1f))
         tabLayout.addView(tabAllVideos, LinearLayout.LayoutParams(0, dp(38), 1f))
+        tabLayout.addView(tabSeen, LinearLayout.LayoutParams(0, dp(38), 1f))
         root.addView(tabLayout)
 
         // Breadcrumb Path Row
@@ -413,6 +432,9 @@ class MainActivity : ComponentActivity() {
 
         tabAllVideos.setTextColor(if (currentTab == TAB_ALL_VIDEOS) activeColor else inactiveColor)
         tabAllVideos.background = if (currentTab == TAB_ALL_VIDEOS) activeBg else null
+
+        tabSeen.setTextColor(if (currentTab == TAB_SEEN) activeColor else inactiveColor)
+        tabSeen.background = if (currentTab == TAB_SEEN) activeBg else null
     }
 
     private fun selectTab(tab: Int) {
@@ -505,6 +527,7 @@ class MainActivity : ComponentActivity() {
                     selectTab(TAB_FOLDERS)
                 }
             }
+            TAB_SEEN -> selectTab(TAB_FOLDERS)
         }
     }
 
@@ -530,6 +553,118 @@ class MainActivity : ComponentActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun getSeenVideos(): List<VideoItem> {
+        return allDeviceVideos.filter {
+            seenPrefs.contains("seen_${it.uri}")
+        }.sortedByDescending {
+            seenPrefs.getLong("seen_${it.uri}", 0L)
+        }
+    }
+
+    private fun promptClearSeenHistory() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear Seen History")
+            .setMessage("Remove all completed videos from the Seen list? Files on storage will NOT be deleted.")
+            .setPositiveButton("Clear") { _, _ ->
+                val editor = seenPrefs.edit()
+                for (key in seenPrefs.all.keys) {
+                    if (key.startsWith("seen_")) {
+                        editor.remove(key)
+                    }
+                }
+                editor.apply()
+                refreshCurrentDisplay()
+                Toast.makeText(this, "Seen history cleared", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun promptDeleteAllSeen(videos: List<VideoItem>) {
+        if (videos.isEmpty()) return
+        val count = videos.size
+        val totalBytes = videos.sumOf { it.sizeBytes }
+        val sizeFormatted = com.example.mxoffline.util.FileSizeFormatter.formatSize(totalBytes)
+
+        AlertDialog.Builder(this)
+            .setTitle("Delete All Seen Videos")
+            .setMessage("Permanently delete $count completed video(s) ($sizeFormatted) from device storage? This cannot be undone.")
+            .setPositiveButton("Delete All") { _, _ ->
+                performBatchDelete(videos)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun performBatchDelete(videos: List<VideoItem>) {
+        if (videos.isEmpty()) return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val contentUris = videos.map { it.uri }.filter { it.scheme == "content" }
+            if (contentUris.isNotEmpty()) {
+                val launched = runCatching {
+                    val pi = MediaStore.createDeleteRequest(contentResolver, contentUris)
+                    pendingBatchDeleteVideos = videos
+                    batchDeleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                    true
+                }.getOrDefault(false)
+                if (launched) return
+            }
+        }
+
+        executor.execute {
+            var deletedCount = 0
+            val seenEditor = seenPrefs.edit()
+            val resumeEditor = resumePrefs.edit()
+            for (video in videos) {
+                var success = false
+                if (video.uri.scheme == "file") {
+                    runCatching {
+                        val f = java.io.File(video.uri.path ?: "")
+                        if (f.exists()) success = f.delete()
+                    }
+                } else if (DocumentsContract.isDocumentUri(this, video.uri)) {
+                    runCatching {
+                        success = DocumentsContract.deleteDocument(contentResolver, video.uri)
+                    }
+                }
+                if (!success) {
+                    try {
+                        val rows = contentResolver.delete(video.uri, null, null)
+                        if (rows > 0) success = true
+                    } catch (e: Exception) {
+                        // Ignored
+                    }
+                }
+                if (success) {
+                    deletedCount++
+                    seenEditor.remove("seen_${video.uri}")
+                    resumeEditor.remove("pos_${video.uri}")
+                }
+            }
+            seenEditor.apply()
+            resumeEditor.apply()
+
+            mainHandler.post {
+                loadDeviceVideos()
+                Toast.makeText(this@MainActivity, "Deleted $deletedCount of ${videos.size} seen video(s)", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun onBatchDeleteSuccess(videos: List<VideoItem>) {
+        val seenEditor = seenPrefs.edit()
+        val resumeEditor = resumePrefs.edit()
+        for (video in videos) {
+            seenEditor.remove("seen_${video.uri}")
+            resumeEditor.remove("pos_${video.uri}")
+        }
+        seenEditor.apply()
+        resumeEditor.apply()
+        loadDeviceVideos()
+        Toast.makeText(this, "Deleted ${videos.size} seen video(s)", Toast.LENGTH_SHORT).show()
     }
 
     private fun refreshCurrentDisplay() {
@@ -637,6 +772,40 @@ class MainActivity : ComponentActivity() {
                 resultCount.text = "${filtered.size} items"
                 emptyView.text = if (filtered.isEmpty()) "This folder is empty" else ""
                 emptyView.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+            }
+
+            TAB_SEEN -> {
+                val seenVideos = getSeenVideos()
+                val filtered = seenVideos.filter {
+                    searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)
+                }
+                val sorted = sortVideos(filtered)
+
+                val listItems = mutableListOf<LibraryListItem>()
+                if (sorted.isNotEmpty()) {
+                    listItems.add(
+                        LibraryListItem.Header(
+                            title = "SEEN VIDEOS",
+                            count = sorted.size,
+                            actionText = "🗑 Delete All Seen",
+                            onActionClick = { promptDeleteAllSeen(sorted) },
+                            secondaryActionText = "Clear History",
+                            onSecondaryActionClick = { promptClearSeenHistory() }
+                        )
+                    )
+                    sorted.forEach { video ->
+                        listItems.add(LibraryListItem.Video(video, sorted))
+                    }
+                }
+
+                adapter.submitItems(listItems)
+                resultCount.text = "${sorted.size} seen videos"
+                val isEmpty = sorted.isEmpty()
+                emptyView.text = if (isEmpty) {
+                    if (searchQuery.isNotBlank()) "No matching seen videos found"
+                    else "No completed videos yet.\n\nVideos you watch to the end will appear here automatically."
+                } else ""
+                emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
             }
         }
     }
