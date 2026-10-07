@@ -241,6 +241,11 @@ class LibraryAdapter(
                 if (header.actionText != null && header.onActionClick != null) {
                     holder.actionBtn.text = header.actionText
                     holder.actionBtn.visibility = View.VISIBLE
+                    if (header.actionText.contains("Delete", ignoreCase = true)) {
+                        holder.actionBtn.setTextColor(0xffff5252.toInt())
+                    } else {
+                        holder.actionBtn.setTextColor(0xffffc400.toInt())
+                    }
                     holder.actionBtn.setOnClickListener { header.onActionClick.invoke() }
                 } else {
                     holder.actionBtn.visibility = View.GONE

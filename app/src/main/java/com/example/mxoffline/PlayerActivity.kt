@@ -162,6 +162,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     private val resumePrefs by lazy { getSharedPreferences("player_resume", MODE_PRIVATE) }
     private val settingsPrefs by lazy { getSharedPreferences("player_settings", MODE_PRIVATE) }
+    private val seenPrefs by lazy { getSharedPreferences("player_seen", MODE_PRIVATE) }
 
     private var uris = ArrayList<String>()
     private var names = ArrayList<String>()
@@ -532,17 +533,25 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         // 1. Screen Lock, 2. 5s Seek Back, 3. Prev Video, 4. Play/Pause, 5. Next Video, 6. 5s Seek Forward, 7. PiP
         val actionsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val lockBtn = actionTextButton("🔒") { lockScreen() }
-        val seekBack5Btn = actionTextButton("⟲ 5s") {
+        val seekBack5Btn = actionTextButton("⟲ 5s") {}
+        setupHoldToContinuousSeek(seekBack5Btn, isForward = false) {
             seekBy(-5_000)
             hudController.showQuickFeedback("⟲ 5s")
         }
-        val prevBtn = actionTextButton("⏮") { previousVideo() }
+        val prevBtn = actionTextButton("⏮") {}
+        setupHoldToContinuousSeek(prevBtn, isForward = false) {
+            previousVideo()
+        }
         playPauseBottomBtn = actionTextButton("Ⅱ") { togglePlay() }.apply {
             textSize = 20f
             setTextColor(0xffffc400.toInt())
         }
-        val nextBtn = actionTextButton("⏭") { nextVideo() }
-        val seekFwd5Btn = actionTextButton("5s ⟳") {
+        val nextBtn = actionTextButton("⏭") {}
+        setupHoldToContinuousSeek(nextBtn, isForward = true) {
+            nextVideo()
+        }
+        val seekFwd5Btn = actionTextButton("5s ⟳") {}
+        setupHoldToContinuousSeek(seekFwd5Btn, isForward = true) {
             seekBy(5_000)
             hudController.showQuickFeedback("5s ⟳")
         }
@@ -657,6 +666,82 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         setOnClickListener { onClick(); scheduleHideControls() }
     }
 
+    private fun setupHoldToContinuousSeek(view: View, isForward: Boolean, onTap: () -> Unit) {
+        var isHolding = false
+        var holdStartPos = 0L
+
+        val seekStepRunnable = object : Runnable {
+            override fun run() {
+                if (!::player.isInitialized) return
+                val step = if (isForward) 2_000L else -2_000L
+                val duration = player.duration.coerceAtLeast(0L)
+                val current = player.currentPosition.coerceAtLeast(0L)
+                val target = (current + step).coerceIn(0L, duration)
+                player.seekTo(target)
+
+                val totalDelta = target - holdStartPos
+                hudController.showSeek(target, totalDelta, duration)
+
+                if (duration > 0) {
+                    seekBar.progress = ((target * 1000) / duration).toInt()
+                    timeView.text = TimeFormatter.formatTime(target)
+                }
+                updateTimeDisplay()
+                updateStatusHeader()
+
+                handler.removeCallbacks(hideControlsRunnable)
+                handler.postDelayed(this, 75L)
+            }
+        }
+
+        val holdDetectRunnable = Runnable {
+            if (!::player.isInitialized) return@Runnable
+            isHolding = true
+            holdStartPos = player.currentPosition.coerceAtLeast(0L)
+            handler.removeCallbacks(hideControlsRunnable)
+            handler.post(seekStepRunnable)
+        }
+
+        view.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isHolding = false
+                    v.alpha = 0.55f
+                    handler.removeCallbacks(hideControlsRunnable)
+                    handler.postDelayed(holdDetectRunnable, 280L)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    v.alpha = 1.0f
+                    handler.removeCallbacks(holdDetectRunnable)
+                    handler.removeCallbacks(seekStepRunnable)
+                    if (isHolding) {
+                        isHolding = false
+                        hudController.hideSeek(400)
+                        scheduleHideControls()
+                    } else {
+                        v.performClick()
+                        onTap()
+                        scheduleHideControls()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    v.alpha = 1.0f
+                    handler.removeCallbacks(holdDetectRunnable)
+                    handler.removeCallbacks(seekStepRunnable)
+                    if (isHolding) {
+                        isHolding = false
+                        hudController.hideSeek(400)
+                    }
+                    scheduleHideControls()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
     private fun quickCircularButton(text: String, onClick: () -> Unit) = TextView(this).apply {
         this.text = text
         textSize = 12f
@@ -698,6 +783,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                         initAudioEffects()
                         resumeManager.checkAndApplyResume(p, uris, index)
                     } else if (state == Player.STATE_ENDED) {
+                        markCurrentVideoAsSeen()
                         playPauseBottomBtn.text = "▶"
                         when (repeatMode) {
                             1 -> nextVideo()
@@ -771,6 +857,12 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
     }
 
+    private fun markCurrentVideoAsSeen() {
+        if (uris.isEmpty() || index !in uris.indices) return
+        val currentUri = uris[index]
+        seenPrefs.edit().putLong("seen_$currentUri", System.currentTimeMillis()).apply()
+    }
+
     private fun updateTitle() {
         titleView.text = names.getOrNull(index) ?: "Video"
     }
@@ -788,6 +880,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 updateTimeDisplay()
                 updateStatusHeader()
 
+                if (d > 5_000L && p >= d - 2_000L) {
+                    markCurrentVideoAsSeen()
+                }
                 if (player.isPlaying) resumeManager.savePosition(player, uris, index)
                 handler.postDelayed(this, 1000)
             }
@@ -1304,8 +1399,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     private fun onVideoDeletedSuccess(targetIndex: Int) {
         if (uris.isEmpty() || targetIndex !in uris.indices) return
+        val deletedUri = uris[targetIndex]
         val deletedName = names.getOrNull(targetIndex) ?: "Video"
 
+        seenPrefs.edit().remove("seen_$deletedUri").apply()
         resumeManager.clearPosition(uris, targetIndex)
 
         if (uris.size <= 1) {
