@@ -1,3 +1,8 @@
+/**
+ * Role: Heads-up display (HUD) visual overlay manager for the video player.
+ * Responsibility: Renders seek indicators, brightness bars, volume overlays, and temporary toasts.
+ * Details: Automatically fades out HUD indicators after inactivity using Handler timers.
+ */
 package com.example.mxoffline.player
 
 import android.content.res.ColorStateList

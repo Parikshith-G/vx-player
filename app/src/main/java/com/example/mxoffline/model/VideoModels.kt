@@ -1,3 +1,8 @@
+/**
+ * Role: Core data models for local media files, folders, and SAF directory entries.
+ * Responsibility: Encapsulates properties for VideoItem, FolderItem, and SafEntry.
+ * Details: Holds IDs, URIs, durations, byte sizes, and timestamps for library presentation.
+ */
 package com.example.mxoffline.model
 
 import android.net.Uri

@@ -1,3 +1,8 @@
+/**
+ * Role: Touch gestures and hardware controls coordinator for PlayerActivity.
+ * Responsibility: Detects vertical swipes (volume/brightness), horizontal drags (seek), and hold-to-speed gestures.
+ * Details: Implements left-half brightness control, right-half volume boost, and hold-to-speed persistence.
+ */
 package com.example.mxoffline.player
 
 import android.content.Context

@@ -1,3 +1,8 @@
+/**
+ * Role: File size string formatter utility.
+ * Responsibility: Converts byte counts into human-readable B, KB, MB, and GB representations.
+ * Details: Formats values using US locale formatting with decimal precision.
+ */
 package com.example.mxoffline.util
 
 import java.util.Locale

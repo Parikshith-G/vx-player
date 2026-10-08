@@ -1,3 +1,8 @@
+/**
+ * Role: Local storage and ContentResolver media scanner.
+ * Responsibility: Queries device MediaStore and SAF trees for video files and aggregates folders.
+ * Details: Extracts metadata including resolutions, durations, file sizes, and folder groupings.
+ */
 package com.example.mxoffline.library
 
 import android.content.ContentResolver
