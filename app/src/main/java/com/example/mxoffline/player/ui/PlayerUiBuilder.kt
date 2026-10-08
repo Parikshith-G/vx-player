@@ -40,6 +40,7 @@ class PlayerUiViews(
     val quickButtonsLayout: LinearLayout,
     val timeView: TextView,
     val remainingTimeView: TextView,
+    val skipOpBtn: TextView,
     val seekBar: SeekBar,
     val lockBtn: TextView,
     val seekBack5Btn: TextView,
@@ -212,6 +213,19 @@ object PlayerUiBuilder {
             background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(0xee000000.toInt(), 0x77000000.toInt(), Color.TRANSPARENT))
             setPadding(dp(14), dp(8), dp(14), dp(12))
         }
+
+        val extraRow = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            setPadding(0, 0, dp(4), dp(4))
+        }
+        val skipOpBtn = TextView(activity).apply {
+            text = "⏭ +90s OP"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD
+            setTextColor(0xffffc400.toInt()); background = UiUtils.rounded(0xdd1e222e.toInt(), 14, activity)
+            setPadding(dp(12), dp(4), dp(12), dp(4)); gravity = Gravity.CENTER; includeFontPadding = false
+        }
+        extraRow.addView(skipOpBtn)
+        bottomBar.addView(extraRow)
+
         val timeRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val timeView = TextView(activity).apply { text = "00:00"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, 0, dp(8), 0) }
         val seekBar = SeekBar(activity).apply {
@@ -253,7 +267,7 @@ object PlayerUiBuilder {
         return PlayerUiViews(
             root, playerView, overlayContainer, persistentStatusHeader, topTimeStatusView,
             batteryText, clockText, lockFloatingBtn, resumeBanner, resumeText, restartBtn,
-            titleView, backButton, menuButton, quickButtonsLayout, timeView, remainingTimeView,
+            titleView, backButton, menuButton, quickButtonsLayout, timeView, remainingTimeView, skipOpBtn,
             seekBar, lockBtn, seekBack5Btn, prevBtn, playPauseBtn, nextBtn, markDoneBtn, seekFwd5Btn, pipBtn,
             seekHud, seekIcon, seekTimeText, seekDeltaText, seekProgressBar,
             brightnessHud, brightnessText, brightnessBar, volumeHud, volumeIcon, volumeText, volumeBar,
