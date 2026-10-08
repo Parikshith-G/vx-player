@@ -1,3 +1,8 @@
+/**
+ * Role: Time and playback speed string formatting utility.
+ * Responsibility: Converts millisecond durations into HH:mm:ss or mm:ss time formats.
+ * Details: Formats playback speed multipliers with dynamic decimal trimming (e.g. 1.25×, 2×).
+ */
 package com.example.mxoffline.util
 
 import java.util.Locale

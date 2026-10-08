@@ -1,3 +1,8 @@
+/**
+ * Role: Sealed hierarchy representing all UI item types in the media library list.
+ * Responsibility: Models Header, RecentCarousel, Video, Folder, and Saf list entries.
+ * Details: Enables type-safe heterogeneous rendering in LibraryAdapter for clean separation of concerns.
+ */
 package com.example.mxoffline.library
 
 import com.example.mxoffline.model.FolderItem

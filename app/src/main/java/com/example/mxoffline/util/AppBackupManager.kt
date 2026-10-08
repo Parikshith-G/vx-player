@@ -1,3 +1,8 @@
+/**
+ * Role: Persistent data backup and restore manager across app uninstalls.
+ * Responsibility: Serializes preferences, history, and seen videos into JSON stored in public Downloads.
+ * Details: Automatically restores preferences on clean installs and writes backups asynchronously.
+ */
 package com.example.mxoffline.util
 
 import android.content.ContentValues

@@ -1,3 +1,8 @@
+/**
+ * Role: Asynchronous video thumbnail loader and memory cache.
+ * Responsibility: Decodes video frame previews and caches bitmaps in an in-memory LruCache.
+ * Details: Uses MediaStore thumbnail APIs and MediaMetadataRetriever fallback without network calls.
+ */
 package com.example.mxoffline.util
 
 import android.content.Context

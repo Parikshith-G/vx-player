@@ -1,3 +1,8 @@
+/**
+ * Role: Playback position persistence and resume banner controller.
+ * Responsibility: Stores playback timestamps in SharedPreferences and presents resume banner on playback start.
+ * Details: Prompts user with "Resumed from 00:00" and a Restart button when starting videos with saved positions.
+ */
 package com.example.mxoffline.player
 
 import android.content.SharedPreferences
