@@ -15,6 +15,7 @@ class PlayerPlaylistController(
     val uris: ArrayList<String>,
     val names: ArrayList<String>,
     initialIndex: Int,
+    val sizes: ArrayList<Long> = arrayListOf(),
     private val onVideoSelected: (Int) -> Unit
 ) {
 
@@ -40,6 +41,7 @@ class PlayerPlaylistController(
 
     fun getCurrentUri(): String? = uris.getOrNull(index)
     fun getCurrentName(): String = names.getOrNull(index) ?: "Video"
+    fun getCurrentSize(): Long = sizes.getOrNull(index) ?: 0L
 
     fun nextVideo(player: ExoPlayer?): Boolean {
         if (player == null || uris.isEmpty()) return false
@@ -110,6 +112,7 @@ class PlayerPlaylistController(
         if (uris.isEmpty() || index !in uris.indices) return index to true
         uris.removeAt(index)
         names.removeAt(index)
+        if (sizes.size > index) sizes.removeAt(index)
         if (uris.isEmpty()) return 0 to true
         if (index >= uris.size) index = 0
         return index to false

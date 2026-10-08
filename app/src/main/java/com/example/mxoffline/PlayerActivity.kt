@@ -50,12 +50,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     private val seenPrefs by lazy { getSharedPreferences("player_seen", MODE_PRIVATE) }
 
     private var isMuted = false; private var preferSoftwareDecoder = false
-    private var backgroundPlayEnabled = false; private var subtitleFontSizeSp = 18f
-    private var currentPlaybackSpeed = 1.0f
+    private var backgroundPlayEnabled = false; private var subtitleFontSizeSp = 18f; private var currentPlaybackSpeed = 1.0f
 
-    private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
-        if (res.resultCode == RESULT_OK) onVideoDeletedSuccess() else Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show()
-    }
+    private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { if (it.resultCode == RESULT_OK) onVideoDeletedSuccess() else Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show() }
 
     private val subtitlePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching {
@@ -67,8 +64,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         AppBackupManager.autoRestoreIfAvailable(this)
         ui = PlayerUiBuilder.build(this)
@@ -76,18 +72,25 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
         val uris = intent.getStringArrayListExtra("uris") ?: arrayListOf()
         val names = intent.getStringArrayListExtra("names") ?: arrayListOf()
+        val rawSizes = intent.getLongArrayExtra("sizes")
+        val sizes = if (rawSizes != null) ArrayList(rawSizes.toList()) else arrayListOf<Long>()
         var index = intent.getIntExtra("index", 0).coerceIn(0, (uris.size - 1).coerceAtLeast(0))
 
         val dataUri = intent.data
         if (uris.isEmpty() && dataUri != null) {
             uris.add(dataUri.toString())
+            var size = 0L
             val name = runCatching {
-                contentResolver.query(dataUri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                    val col = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (c.moveToFirst() && col >= 0) c.getString(col) else null
+                contentResolver.query(dataUri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+                    val nameCol = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeCol = c.getColumnIndex(OpenableColumns.SIZE)
+                    if (c.moveToFirst()) {
+                        if (sizeCol >= 0 && !c.isNull(sizeCol)) size = c.getLong(sizeCol)
+                        if (nameCol >= 0) c.getString(nameCol) else null
+                    } else null
                 }
             }.getOrNull() ?: dataUri.lastPathSegment ?: "Video"
-            names.add(name); index = 0
+            names.add(name); sizes.add(size); index = 0
         }
 
         preferSoftwareDecoder = settingsPrefs.getBoolean("sw_decoder", false)
@@ -95,17 +98,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         backgroundPlayEnabled = settingsPrefs.getBoolean("bg_play", false)
 
         s = PlayerSubsystems.create(
-            this, ui, handler, settingsPrefs, resumePrefs, seenPrefs, uris, names, index, deleteLauncher, this,
+            this, ui, handler, settingsPrefs, resumePrefs, seenPrefs, uris, names, index, sizes, deleteLauncher, this,
             isPlayerPlaying = { ::player.isInitialized && player.isPlaying },
             isInPip = { Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode },
             onPlaylistIndexChanged = { onPlaylistIndexChanged() },
             onSeekStop = { if (::player.isInitialized && player.duration > 0) player.seekTo((player.duration * ui.seekBar.progress) / 1000); s.controlsLock.scheduleHideControls() },
-            onReachEndThreshold = { s.seen.markCurrentVideoAsSeen(s.playlist.uris, s.playlist.index) },
+            onReachEndThreshold = { s.seen.markCurrentVideoAsSeen(s.playlist) },
             onPipPlay = { if (::player.isInitialized) { if (player.playbackState == androidx.media3.common.Player.STATE_IDLE || player.playerError != null) player.prepare(); player.play(); s.pip.updatePipParams(player, ui.playerView) } },
             onPipPause = { if (::player.isInitialized) { player.pause(); s.pip.updatePipParams(player, ui.playerView) } },
             onPipPrev = { if (::player.isInitialized) { s.playlist.previousVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
             onPipNext = { if (::player.isInitialized) { s.playlist.nextVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
-            onPipDismiss = { if (::player.isInitialized) { s.resume.savePosition(player, s.playlist.uris, s.playlist.index); player.pause() }; finish() }
+            onPipDismiss = { if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.pause() }; finish() }
         )
 
         initPlayer(); setupListeners(); s.pip.register(); setupBackNavigation()
@@ -136,11 +139,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         if (s.playlist.uris.isNotEmpty()) {
             p.setMediaItems(s.playlist.uris.map { MediaItem.fromUri(it) }, s.playlist.index, 0)
             p.prepare(); p.playbackParameters = PlaybackParameters(currentPlaybackSpeed, 1.0f); p.playWhenReady = true
-            s.seen.markCurrentVideoAsSeen(s.playlist.uris, s.playlist.index)
+            s.seen.markCurrentVideoAsSeen(s.playlist)
         }
         ui.titleView.text = s.playlist.getCurrentName()
         s.screen.applyOrientation(this, p, null, false); s.screen.applyAspectRatio(ui.playerView)
-        s.quickButtons.renderButtons(); s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist.uris, s.playlist.index)
+        s.quickButtons.renderButtons(); s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist)
     }
 
     private fun setupListeners() {
@@ -156,33 +159,33 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         ui.nextBtn.setOnClickListener { s.playlist.nextVideo(player) }
         s.timeline.setupHoldToContinuousSeek(ui.nextBtn, true, { player }, { s.controlsLock.scheduleHideControls() })
         ui.markDoneBtn.setOnClickListener {
-            val marked = s.seen.toggleMarkCurrentVideoAsSeen(s.playlist.uris, s.playlist.index)
-            s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist.uris, s.playlist.index)
+            val marked = s.seen.toggleMarkCurrentVideoAsSeen(s.playlist)
+            s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist)
             s.hud.showQuickFeedback(if (marked) "Marked as Seen ✓" else "Removed from Seen")
         }
         ui.seekFwd5Btn.setOnClickListener { seekBy(5_000); s.hud.showQuickFeedback("5s ⟳") }
         s.timeline.setupHoldToContinuousSeek(ui.seekFwd5Btn, true, { player }, { s.controlsLock.scheduleHideControls() })
         ui.pipBtn.setOnClickListener { onEnterPip() }
-        ui.restartBtn.setOnClickListener { player.seekTo(0); s.resume.clearPosition(s.playlist.uris, s.playlist.index) }
+        ui.restartBtn.setOnClickListener { player.seekTo(0); s.resume.clearPosition(s.playlist) }
         val toggleTime: (View) -> Unit = { s.timeline.toggleRemainingTime() }
         ui.timeView.setOnClickListener(toggleTime); ui.remainingTimeView.setOnClickListener(toggleTime)
     }
 
     private fun onPlaylistIndexChanged() {
         ui.titleView.text = s.playlist.getCurrentName()
-        s.seen.markCurrentVideoAsSeen(s.playlist.uris, s.playlist.index)
-        s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist.uris, s.playlist.index)
+        s.seen.markCurrentVideoAsSeen(s.playlist)
+        s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist)
         if (::player.isInitialized) s.pip.updatePipParams(player, ui.playerView)
     }
 
-    override fun onReady() { if (::player.isInitialized) { s.audioBoost.initAudioEffects(player); s.resume.checkAndApplyResume(player, s.playlist.uris, s.playlist.index) } }
+    override fun onReady() { if (::player.isInitialized) { s.audioBoost.initAudioEffects(player); s.resume.checkAndApplyResume(player, s.playlist) } }
     override fun onEnded() {
         if (!::player.isInitialized) return
-        s.seen.markCurrentVideoAsSeen(s.playlist.uris, s.playlist.index); ui.playPauseBtn.text = "▶"
+        s.seen.markCurrentVideoAsSeen(s.playlist); ui.playPauseBtn.text = "▶"
         when (s.playlist.repeatMode) {
             PlayerPlaylistController.REPEAT_ALL -> s.playlist.nextVideo(player)
             PlayerPlaylistController.REPEAT_ONE -> { player.seekTo(0); player.prepare(); player.play() }
-            else -> if (!s.playlist.nextVideo(player)) { player.pause(); s.resume.clearPosition(s.playlist.uris, s.playlist.index) }
+            else -> if (!s.playlist.nextVideo(player)) { player.pause(); s.resume.clearPosition(s.playlist) }
         }
     }
     override fun onPlayingChanged(isPlaying: Boolean) {
@@ -207,7 +210,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         override fun run() {
             if (::player.isInitialized) {
                 s.timeline.updateProgress(player); s.header.update(player)
-                if (player.isPlaying) s.resume.savePosition(player, s.playlist.uris, s.playlist.index)
+                if (player.isPlaying) s.resume.savePosition(player, s.playlist)
                 handler.postDelayed(this, 1000)
             }
         }
@@ -234,7 +237,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) s.controlsLock.hideSystemBars() }
     override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); s.controlsLock.hideSystemBars(); if (::player.isInitialized) s.header.update(player) }
     override fun onResume() { super.onResume(); s.pip.onResumeClean(); s.controlsLock.hideSystemBars(); s.header.setVisible(true); s.controlsLock.setControlsVisible(s.controlsLock.controlsVisible) }
-    override fun onPause() { super.onPause(); if (::player.isInitialized) { s.resume.savePosition(player, s.playlist.uris, s.playlist.index); if (!(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) && !backgroundPlayEnabled) player.pause() }; AppBackupManager.backupToStorageAsync(this) }
+    override fun onPause() { super.onPause(); if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); if (!(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) && !backgroundPlayEnabled) player.pause() }; AppBackupManager.backupToStorageAsync(this) }
     override fun onStop() { super.onStop(); if (::player.isInitialized && !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) && !backgroundPlayEnabled) player.pause() }
     override fun onUserLeaveHint() { super.onUserLeaveHint(); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && ::player.isInitialized) onEnterPip() }
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: Configuration) {
@@ -244,7 +247,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null); s.pip.onDestroyClean(); s.controlsLock.release()
-        if (::player.isInitialized) { s.resume.savePosition(player, s.playlist.uris, s.playlist.index); player.pause(); s.audioBoost.release(); ui.playerView.player = null; player.release() }
+        if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.pause(); s.audioBoost.release(); ui.playerView.player = null; player.release() }
         super.onDestroy()
     }
 

@@ -71,8 +71,31 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     }
 
     private val permissionLauncher: androidx.activity.result.ActivityResultLauncher<String> = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) { ui.permissionBanner.visibility = View.GONE; loadDeviceVideos() }
-        else { Toast.makeText(this, "Storage permission is needed to scan local videos", Toast.LENGTH_LONG).show(); updatePermissionBanner() }
+        if (granted) {
+            ui.permissionBanner.visibility = View.GONE
+            executor.execute { AppBackupManager.autoRestoreIfAvailable(this@MainActivity); mainHandler.post { loadDeviceVideos() } }
+        } else {
+            Toast.makeText(this, "Storage permission is needed to scan local videos", Toast.LENGTH_LONG).show()
+            updatePermissionBanner()
+        }
+    }
+
+    private val backupExportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            contentResolver.openOutputStream(uri)?.use { AppBackupManager.exportToStream(this, it) }
+            Toast.makeText(this, "Backup exported successfully", Toast.LENGTH_SHORT).show()
+        }.onFailure { Toast.makeText(this, "Export failed: ${it.localizedMessage}", Toast.LENGTH_SHORT).show() }
+    }
+
+    private val backupImportLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            val ok = contentResolver.openInputStream(uri)?.use { AppBackupManager.importFromStream(this, it) } ?: false
+            if (ok) {
+                sortMode = prefs.getInt("sort_mode", 0)
+                loadDeviceVideos()
+                Toast.makeText(this, "Preferences & Seen history restored!", Toast.LENGTH_SHORT).show()
+            } else Toast.makeText(this, "Failed to parse backup file", Toast.LENGTH_SHORT).show()
+        }.onFailure { Toast.makeText(this, "Import failed: ${it.localizedMessage}", Toast.LENGTH_SHORT).show() }
     }
 
     private val folderPicker: androidx.activity.result.ActivityResultLauncher<Uri?> = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -117,7 +140,13 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     }
 
     override fun onPause() { super.onPause(); AppBackupManager.backupToStorageAsync(this) }
-    override fun onResume() { super.onResume(); if (LibraryPermissionHelper.hasPermission(this)) loadDeviceVideos() else updatePermissionBanner() }
+    override fun onResume() {
+        super.onResume()
+        if (LibraryPermissionHelper.hasPermission(this)) {
+            if (seenPrefs.all.isEmpty() && resumePrefs.all.isEmpty()) executor.execute { if (AppBackupManager.autoRestoreIfAvailable(this@MainActivity)) mainHandler.post { refreshCurrentDisplay() } }
+            loadDeviceVideos()
+        } else updatePermissionBanner()
+    }
 
     private fun setupBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -139,6 +168,7 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
 
     private fun loadDeviceVideos() {
         executor.execute {
+            if (seenPrefs.all.isEmpty() && resumePrefs.all.isEmpty()) AppBackupManager.autoRestoreIfAvailable(this@MainActivity)
             val videos = MediaScanner.scanDeviceVideos(contentResolver)
             val folders = MediaScanner.groupIntoFolders(videos)
             mainHandler.post { allDeviceVideos = videos; deviceFolders = folders; refreshCurrentDisplay() }
@@ -224,6 +254,11 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     }
 
     override fun onMoreMenuClicked() {
-        LibraryMenuHelper.showMoreMenu(this) { sortMode = prefs.getInt("sort_mode", 0); refreshCurrentDisplay() }
+        LibraryMenuHelper.showMoreMenu(
+            this,
+            onExport = { backupExportLauncher.launch(AppBackupManager.BACKUP_FILENAME) },
+            onImport = { backupImportLauncher.launch(arrayOf("application/json", "*/*")) },
+            onRestoreSuccess = { sortMode = prefs.getInt("sort_mode", 0); loadDeviceVideos() }
+        )
     }
 }
