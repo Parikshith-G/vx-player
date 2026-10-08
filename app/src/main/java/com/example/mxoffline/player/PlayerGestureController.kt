@@ -53,8 +53,6 @@ class PlayerGestureController(
     private var holdStartX = 0f
     private var holdBaseSpeed = 2.0f
     private var currentHoldSpeed = 2.0f
-    private var rememberedHoldSpeed: Float = context.getSharedPreferences("player_settings", Context.MODE_PRIVATE)
-        .getFloat("hold_speed", 2.0f).coerceIn(0.25f, 8.0f)
     private var pendingSingleTap: Runnable? = null
     private val touchSlop = (ViewConfiguration.get(context).scaledTouchSlop / 2).coerceAtLeast(8)
 
@@ -63,7 +61,7 @@ class PlayerGestureController(
             gestureMode = GESTURE_HOLD_BOOST
             originalSpeedBeforeBoost = player.playbackParameters.speed
             wasPlayingBeforeBoost = player.isPlaying
-            holdBaseSpeed = rememberedHoldSpeed
+            holdBaseSpeed = 2.0f
             currentHoldSpeed = holdBaseSpeed
             holdStartX = gestureStartX
             player.playbackParameters = PlaybackParameters(currentHoldSpeed, 1.0f)
@@ -207,11 +205,6 @@ class PlayerGestureController(
 
                 when (gestureMode) {
                     GESTURE_HOLD_BOOST -> {
-                        rememberedHoldSpeed = currentHoldSpeed
-                        context.getSharedPreferences("player_settings", Context.MODE_PRIVATE)
-                            .edit()
-                            .putFloat("hold_speed", rememberedHoldSpeed)
-                            .apply()
                         player.playbackParameters = PlaybackParameters(originalSpeedBeforeBoost, 1.0f)
                         if (!wasPlayingBeforeBoost) {
                             player.pause()

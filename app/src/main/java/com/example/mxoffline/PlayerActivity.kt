@@ -68,6 +68,7 @@ import com.example.mxoffline.player.PlayerHudController
 import com.example.mxoffline.player.PlayerResumeManager
 import com.example.mxoffline.util.TimeFormatter
 import com.example.mxoffline.util.UiUtils
+import com.example.mxoffline.util.AppBackupManager
 
 class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
@@ -217,6 +218,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
 
         parseIntentData()
+        AppBackupManager.autoRestoreIfAvailable(this)
         backgroundPlayEnabled = settingsPrefs.getBoolean("bg_play", false)
         preferSoftwareDecoder = settingsPrefs.getBoolean("sw_decoder", false)
         currentPlaybackSpeed = settingsPrefs.getFloat("playback_speed", 1.0f)
@@ -424,6 +426,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 settingsPrefs.edit().putInt("top_time_mode", topTimeStatusMode).apply()
                 updateStatusHeader()
                 hudController.showQuickFeedback(if (topTimeStatusMode == 1) "Time: Done / Remaining" else "Time: Done / Total")
+                AppBackupManager.backupToStorageAsync(this@PlayerActivity)
             }
         }
 
@@ -531,6 +534,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 settingsPrefs.edit().putBoolean("show_remaining_time", showRemainingTime).apply()
                 updateTimeDisplay()
                 hudController.showQuickFeedback(if (showRemainingTime) "Time: Remaining (-)" else "Time: Total")
+                AppBackupManager.backupToStorageAsync(this@PlayerActivity)
             }
         }
         seekBar = SeekBar(this).apply {
@@ -551,6 +555,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 settingsPrefs.edit().putBoolean("show_remaining_time", showRemainingTime).apply()
                 updateTimeDisplay()
                 hudController.showQuickFeedback(if (showRemainingTime) "Time: Remaining (-)" else "Time: Total")
+                AppBackupManager.backupToStorageAsync(this@PlayerActivity)
             }
         }
         timelineRow.addView(timeView)
@@ -948,6 +953,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             updateMarkDoneButtonState()
             hudController.showQuickFeedback("Marked as Seen ✓")
         }
+        AppBackupManager.backupToStorageAsync(this)
     }
 
     private fun markCurrentVideoAsSeen() {
@@ -955,6 +961,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         val currentUri = uris[index]
         seenPrefs.edit().putLong("seen_$currentUri", System.currentTimeMillis()).apply()
         updateMarkDoneButtonState()
+        AppBackupManager.backupToStorageAsync(this)
     }
 
     private fun updateTitle() {
@@ -1150,12 +1157,14 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         playerView.resizeMode = mode
         aspectCircularBtn?.text = "📐 $label"
         hudController.showQuickFeedback("Screen: $label")
+        AppBackupManager.backupToStorageAsync(this)
     }
 
     private fun cycleOrientation() {
         currentOrientationMode = (currentOrientationMode + 1) % 4
         settingsPrefs.edit().putInt("orientation_mode", currentOrientationMode).apply()
         applyOrientation(showFeedback = true)
+        AppBackupManager.backupToStorageAsync(this)
     }
 
     private fun applyOrientation(showFeedback: Boolean = true) {
@@ -1210,6 +1219,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
         speedCircularBtn?.text = TimeFormatter.formatSpeed(speed)
         hudController.showQuickFeedback("${TimeFormatter.formatSpeed(speed)} Speed")
+        AppBackupManager.backupToStorageAsync(this)
     }
 
     private fun loadExternalSubtitle(uri: Uri) {
@@ -1568,7 +1578,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             "Sleep Timer",
             "Background Play: ${if (backgroundPlayEnabled) "On" else "Off"}",
             "Video Information",
-            "Picture-in-Picture"
+            "Picture-in-Picture",
+            "💾 Backup & Restore (Survives Uninstall)"
         )
         AlertDialog.Builder(this)
             .setTitle("Player Settings")
@@ -1608,8 +1619,52 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     }
                     9 -> dialogHelper.showVideoInfoDialog(names.getOrNull(index) ?: "Video", preferSoftwareDecoder)
                     10 -> enterPipMode()
+                    11 -> showBackupRestoreDialog()
                 }
             }
+            .show()
+    }
+
+    private fun showBackupRestoreDialog() {
+        val options = arrayOf(
+            "💾 Backup All Settings & History Now",
+            "📥 Restore from Storage Backup"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Persistent Backup & Restore")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        AppBackupManager.backupToStorageAsync(this) { success ->
+                            runOnUiThread {
+                                if (success) {
+                                    Toast.makeText(this, "Backed up to Downloads/${AppBackupManager.BACKUP_FILENAME}", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(this, "Could not write backup file", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                    1 -> {
+                        val restored = AppBackupManager.autoRestoreIfAvailable(this)
+                        if (restored) {
+                            currentPlaybackSpeed = settingsPrefs.getFloat("playback_speed", 1.0f)
+                            currentOrientationMode = settingsPrefs.getInt("orientation_mode", 1)
+                            currentAspectModeIndex = settingsPrefs.getInt("aspect_mode", 0)
+                            showRemainingTime = settingsPrefs.getBoolean("show_remaining_time", true)
+                            topTimeStatusMode = settingsPrefs.getInt("top_time_mode", 1)
+                            applyOrientation(showFeedback = false)
+                            updateMarkDoneButtonState()
+                            updateTimeDisplay()
+                            updateStatusHeader()
+                            Toast.makeText(this, "Settings & Seen history restored!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "No backup file found in Downloads or Documents", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Close", null)
             .show()
     }
 
@@ -1844,6 +1899,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 player.pause()
             }
         }
+        AppBackupManager.backupToStorageAsync(this)
     }
 
     override fun onStop() {

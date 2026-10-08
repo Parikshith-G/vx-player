@@ -41,6 +41,7 @@ import com.example.mxoffline.model.FolderItem
 import com.example.mxoffline.model.SafEntry
 import com.example.mxoffline.model.VideoItem
 import com.example.mxoffline.util.UiUtils
+import com.example.mxoffline.util.AppBackupManager
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
@@ -139,10 +140,16 @@ class MainActivity : ComponentActivity() {
         window.navigationBarColor = 0xff0f1115.toInt()
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
 
+        AppBackupManager.autoRestoreIfAvailable(this)
         sortMode = prefs.getInt("sort_mode", 0)
         buildScreen()
         setupBackNavigation()
         checkPermissionsAndLoad()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        AppBackupManager.backupToStorageAsync(this)
     }
 
     override fun onResume() {
@@ -261,6 +268,7 @@ class MainActivity : ComponentActivity() {
         header.addView(iconButton("🔀") { showSortMenu() }, LinearLayout.LayoutParams(dp(42), dp(42)))
         header.addView(iconButton("📁") { folderPicker.launch(treeUri) }, LinearLayout.LayoutParams(dp(42), dp(42)))
         header.addView(iconButton("＋") { filePicker.launch(arrayOf("video/*", "*/*")) }, LinearLayout.LayoutParams(dp(42), dp(42)))
+        header.addView(iconButton("⋮") { showMoreMenu() }, LinearLayout.LayoutParams(dp(42), dp(42)))
         root.addView(header)
 
         // Search Input
@@ -575,6 +583,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 editor.apply()
+                AppBackupManager.backupToStorageAsync(this)
                 refreshCurrentDisplay()
                 Toast.makeText(this, "Seen history cleared", Toast.LENGTH_SHORT).show()
             }
@@ -646,6 +655,7 @@ class MainActivity : ComponentActivity() {
             }
             seenEditor.apply()
             resumeEditor.apply()
+            AppBackupManager.backupToStorageAsync(this)
 
             mainHandler.post {
                 loadDeviceVideos()
@@ -906,6 +916,50 @@ class MainActivity : ComponentActivity() {
             .setTitle("Cannot open folder")
             .setMessage(error.localizedMessage ?: "Folder access may have been removed.")
             .setPositiveButton("Choose Folder") { _, _ -> folderPicker.launch(treeUri) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showMoreMenu() {
+        val options = arrayOf(
+            "💾 Backup Data to Storage (Survives Uninstall)",
+            "📥 Restore Data from Storage",
+            "ℹ About VX Player"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Options")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        AppBackupManager.backupToStorageAsync(this) { success ->
+                            runOnUiThread {
+                                if (success) {
+                                    Toast.makeText(this, "Backed up to Downloads/${AppBackupManager.BACKUP_FILENAME}", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(this, "Could not write backup file", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                    1 -> {
+                        val restored = AppBackupManager.autoRestoreIfAvailable(this)
+                        if (restored) {
+                            sortMode = prefs.getInt("sort_mode", 0)
+                            refreshCurrentDisplay()
+                            Toast.makeText(this, "Preferences & Seen history restored!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "No backup file found in Downloads or Documents", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    2 -> {
+                        AlertDialog.Builder(this)
+                            .setTitle("VX Player")
+                            .setMessage("Version 1.0\n100% Offline & Private.\nAll data is kept on your device and backed up to Downloads/${AppBackupManager.BACKUP_FILENAME}.")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                }
+            }
             .setNegativeButton("Cancel", null)
             .show()
     }
