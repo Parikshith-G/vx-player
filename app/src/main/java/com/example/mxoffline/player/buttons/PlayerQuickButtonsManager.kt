@@ -39,6 +39,7 @@ class PlayerQuickButtonsManager(
 
     interface Callbacks {
         fun onSpeedClicked(anchor: TextView?)
+        fun onSkip90Clicked()
         fun onOrientationClicked()
         fun onAspectClicked()
         fun onPlaylistClicked()
@@ -57,6 +58,7 @@ class PlayerQuickButtonsManager(
 
     val allQuickButtons = listOf(
         "speed" to "Playback Speed",
+        "skip90" to "Skip 90s (Anime OP)",
         "orientation" to "Orientation Lock",
         "aspect" to "Fit / Aspect Ratio",
         "playlist" to "In-Player Playlist",
@@ -81,7 +83,7 @@ class PlayerQuickButtonsManager(
         quickButtonsLayout.removeAllViews()
 
         val savedKeys = settingsPrefs.getStringSet("top_quick_buttons", null)
-            ?: setOf("speed", "orientation", "aspect", "playlist", "delete")
+            ?: setOf("speed", "skip90", "orientation", "aspect", "playlist", "delete")
 
         fun quickBtn(text: String, onClick: () -> Unit) = TextView(activity).apply {
             this.text = text
@@ -107,6 +109,7 @@ class PlayerQuickButtonsManager(
                         speedCircularBtn = btn
                         quickButtonsLayout.addView(btn)
                     }
+                    "skip90" -> quickButtonsLayout.addView(quickBtn("⏭ 90s OP") { callbacks.onSkip90Clicked() })
                     "orientation" -> {
                         val btn = quickBtn("🔄 ${callbacks.getOrientationLabel()}") { callbacks.onOrientationClicked() }
                         orientationCircularBtn = btn

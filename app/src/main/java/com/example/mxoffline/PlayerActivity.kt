@@ -165,6 +165,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         }
         ui.seekFwd5Btn.setOnClickListener { seekBy(5_000); s.hud.showQuickFeedback("5s ⟳") }
         s.timeline.setupHoldToContinuousSeek(ui.seekFwd5Btn, true, { player }, { s.controlsLock.scheduleHideControls() })
+        ui.skipOpBtn.setOnClickListener { skipForward90s() }
         ui.pipBtn.setOnClickListener { onEnterPip() }
         ui.restartBtn.setOnClickListener { player.seekTo(0); s.resume.clearPosition(s.playlist) }
         val toggleTime: (View) -> Unit = { s.timeline.toggleRemainingTime() }
@@ -262,7 +263,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         settingsPrefs.edit().putBoolean("sw_decoder", preferSoftwareDecoder).apply()
         s.quickButtons.updateDynamicLabels()
         s.hud.showQuickFeedback(if (preferSoftwareDecoder) "Decoder: SW" else "Decoder: HW")
-        if (::player.isInitialized) { s.resume.savePosition(player, s.playlist.uris, s.playlist.index); player.release() }
+        if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.release() }
         initPlayer()
     }
     override fun onTimerClicked() = s.dialogs?.showSleepTimerDialog { m -> handler.removeCallbacks(sleepTimerRunnable); if (m > 0) { handler.postDelayed(sleepTimerRunnable, m * 60_000L); s.hud.showQuickFeedback("Sleep timer: $m mins") } } ?: Unit
@@ -273,20 +274,19 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         if (empty) { player.stop(); player.clearMediaItems(); finish() }
         else { player.removeMediaItem(newIdx); player.seekTo(newIdx, 0L); player.play(); onPlaylistIndexChanged() }
     }
+
+    override fun onSkip90Clicked() = skipForward90s()
+    private fun skipForward90s() { seekBy(90_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
+
     override fun onButtonInteracted() = s.controlsLock.scheduleHideControls()
-    override fun getCurrentUri() = s.playlist.getCurrentUri()
-    override fun getCurrentName() = s.playlist.getCurrentName()
-    override fun getOrientationLabel() = s.screen.getOrientationLabel()
-    override fun getAspectLabel() = s.screen.getAspectLabel()
+    override fun getCurrentUri() = s.playlist.getCurrentUri(); override fun getCurrentName() = s.playlist.getCurrentName()
+    override fun getOrientationLabel() = s.screen.getOrientationLabel(); override fun getAspectLabel() = s.screen.getAspectLabel()
     override fun isSoftwareDecoder() = preferSoftwareDecoder
 
     override fun onCustomizeQuickButtons() = s.quickButtons.showCustomizeDialog()
-    override fun onSpeedDialog() = onSpeedClicked(null)
-    override fun onCycleAspectRatio() = onAspectClicked()
-    override fun onCycleOrientation() = onOrientationClicked()
-    override fun onAudioTrackDialog() = onAudioClicked()
-    override fun onSubtitleDialog() = onSubtitleClicked()
-    override fun onToggleDecoder() = onDecoderClicked()
+    override fun onSpeedDialog() = onSpeedClicked(null); override fun onCycleAspectRatio() = onAspectClicked()
+    override fun onCycleOrientation() = onOrientationClicked(); override fun onAudioTrackDialog() = onAudioClicked()
+    override fun onSubtitleDialog() = onSubtitleClicked(); override fun onToggleDecoder() = onDecoderClicked()
     override fun onSleepTimerDialog() = onTimerClicked()
     override fun onToggleBackgroundPlay(): Boolean { backgroundPlayEnabled = !backgroundPlayEnabled; settingsPrefs.edit().putBoolean("bg_play", backgroundPlayEnabled).apply(); s.hud.showQuickFeedback("Background Play: ${if (backgroundPlayEnabled) "On" else "Off"}"); return backgroundPlayEnabled }
     override fun onVideoInfoDialog() = s.dialogs?.showVideoInfoDialog(s.playlist.getCurrentName(), preferSoftwareDecoder) ?: Unit
