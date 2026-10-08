@@ -19,10 +19,10 @@ object BackupStorageHelper {
 
     fun writeToPublicStorage(json: String): Boolean {
         var anySuccess = false
-        val baseDirs = listOf(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+        val baseDirs = listOfNotNull(
+            runCatching { Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) }.getOrNull(),
+            runCatching { Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS) }.getOrNull(),
+            runCatching { Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES) }.getOrNull()
         )
         for (base in baseDirs) {
             runCatching {
@@ -58,34 +58,43 @@ object BackupStorageHelper {
                 }
             }
 
-            val targetUri = existingUri ?: run {
+            var written = false
+            if (existingUri != null) {
+                runCatching {
+                    resolver.openOutputStream(existingUri!!, "rwt")?.use { out ->
+                        out.write(json.toByteArray(Charsets.UTF_8))
+                        out.flush()
+                        written = true
+                    }
+                }
+            }
+
+            if (!written) {
                 val values = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, BACKUP_FILENAME)
                     put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
                     put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$BACKUP_DIR_NAME/")
                 }
-                resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            }
-
-            if (targetUri != null) {
-                resolver.openOutputStream(targetUri, "rwt")?.use { out ->
-                    out.write(json.toByteArray(Charsets.UTF_8))
-                    out.flush()
+                val newUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                if (newUri != null) {
+                    resolver.openOutputStream(newUri, "rwt")?.use { out ->
+                        out.write(json.toByteArray(Charsets.UTF_8))
+                        out.flush()
+                        written = true
+                    }
                 }
-                true
-            } else {
-                false
             }
+            written
         }.getOrDefault(false)
     }
 
     fun readExistingBackupFromStorage(context: Context): String? {
-        val filesToCheck = listOf(
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "$BACKUP_DIR_NAME/$BACKUP_FILENAME"),
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "$BACKUP_DIR_NAME/$BACKUP_FILENAME"),
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "$BACKUP_DIR_NAME/$BACKUP_FILENAME"),
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), BACKUP_FILENAME),
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), BACKUP_FILENAME)
+        val filesToCheck = listOfNotNull(
+            runCatching { File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "$BACKUP_DIR_NAME/$BACKUP_FILENAME") }.getOrNull(),
+            runCatching { File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "$BACKUP_DIR_NAME/$BACKUP_FILENAME") }.getOrNull(),
+            runCatching { File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "$BACKUP_DIR_NAME/$BACKUP_FILENAME") }.getOrNull(),
+            runCatching { File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), BACKUP_FILENAME) }.getOrNull(),
+            runCatching { File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), BACKUP_FILENAME) }.getOrNull()
         )
 
         for (file in filesToCheck) {
@@ -101,14 +110,17 @@ object BackupStorageHelper {
             runCatching {
                 val resolver = context.contentResolver
                 val projection = arrayOf(MediaStore.MediaColumns._ID)
-                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE 'vxplayer_backup%.json'"
+                val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+                val selectionArgs = arrayOf("vxplayer_backup%.json")
                 val sortOrder = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC"
-                resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, null, sortOrder)?.use { cursor ->
+                resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
                     val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
                     while (cursor.moveToNext()) {
-                        val id = cursor.getLong(idCol)
-                        val uri = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
-                        val content = resolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
+                        val content = runCatching {
+                            val id = cursor.getLong(idCol)
+                            val uri = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI, id.toString())
+                            resolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
+                        }.getOrNull()
                         if (!content.isNullOrBlank()) return content
                     }
                 }

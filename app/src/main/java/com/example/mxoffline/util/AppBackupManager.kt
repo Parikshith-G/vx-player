@@ -52,6 +52,16 @@ object AppBackupManager {
                     if (changed) editor.apply()
                 }
 
+                if (extraResume.isNotEmpty()) {
+                    val resumePrefs = appContext.getSharedPreferences("player_resume", Context.MODE_PRIVATE)
+                    val editor = resumePrefs.edit()
+                    var changed = false
+                    for ((k, v) in extraResume) {
+                        if (!resumePrefs.contains(k)) { editor.putLong(k, v); changed = true }
+                    }
+                    if (changed) editor.apply()
+                }
+
                 val json = BackupSerializer.createBackupJson(appContext, extraSeen, extraResume)
                 val pubSuccess = BackupStorageHelper.writeToPublicStorage(json)
                 val msSuccess = BackupStorageHelper.writeToMediaStore(appContext, json)
@@ -74,6 +84,14 @@ object AppBackupManager {
                 false
             }
         }.getOrDefault(false)
+    }
+
+    fun autoRestoreAsync(context: Context, onComplete: ((Boolean) -> Unit)? = null) {
+        val appContext = context.applicationContext
+        executor.execute {
+            val restored = autoRestoreIfAvailable(appContext)
+            onComplete?.invoke(restored)
+        }
     }
 
     fun clearBackupData(context: Context) {

@@ -11,6 +11,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.exoplayer.ExoPlayer
+import com.example.mxoffline.util.PreferenceHelper
 import com.example.mxoffline.util.TimeFormatter
 import com.example.mxoffline.util.VideoIdentity
 
@@ -27,7 +28,7 @@ class PlayerResumeManager(
         val keys = VideoIdentity.getAllKeysForVideo("pos", uri, name, size)
         var maxPos = 0L
         for (k in keys) {
-            val p = prefs.getLong(k, 0L)
+            val p = PreferenceHelper.safeGetLong(prefs, k, 0L)
             if (p > maxPos) maxPos = p
         }
         return maxPos

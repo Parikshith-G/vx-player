@@ -13,6 +13,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.example.mxoffline.player.PlayerHudController
 import com.example.mxoffline.util.AppBackupManager
+import com.example.mxoffline.util.PreferenceHelper
 
 class PlayerScreenController(
     private val settingsPrefs: SharedPreferences
@@ -29,10 +30,10 @@ class PlayerScreenController(
         const val ASPECT_ZOOM = 2
     }
 
-    var orientationMode: Int = settingsPrefs.getInt("orientation_mode", ORIENTATION_LANDSCAPE)
+    var orientationMode: Int = PreferenceHelper.safeGetInt(settingsPrefs, "orientation_mode", ORIENTATION_LANDSCAPE)
         private set
 
-    var aspectModeIndex: Int = settingsPrefs.getInt("aspect_mode", ASPECT_FIT)
+    var aspectModeIndex: Int = PreferenceHelper.safeGetInt(settingsPrefs, "aspect_mode", ASPECT_FIT)
         private set
 
     fun getOrientationLabel(): String {
@@ -116,8 +117,8 @@ class PlayerScreenController(
     }
 
     fun syncFromPreferences(activity: Activity, player: ExoPlayer?, playerView: PlayerView) {
-        orientationMode = settingsPrefs.getInt("orientation_mode", ORIENTATION_LANDSCAPE)
-        aspectModeIndex = settingsPrefs.getInt("aspect_mode", ASPECT_FIT)
+        orientationMode = PreferenceHelper.safeGetInt(settingsPrefs, "orientation_mode", ORIENTATION_LANDSCAPE)
+        aspectModeIndex = PreferenceHelper.safeGetInt(settingsPrefs, "aspect_mode", ASPECT_FIT)
         applyOrientation(activity, player, null, showFeedback = false)
         applyAspectRatio(playerView)
     }

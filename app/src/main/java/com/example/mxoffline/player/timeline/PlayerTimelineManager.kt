@@ -15,6 +15,7 @@ import android.widget.TextView
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.mxoffline.player.PlayerHudController
 import com.example.mxoffline.util.AppBackupManager
+import com.example.mxoffline.util.PreferenceHelper
 import com.example.mxoffline.util.TimeFormatter
 
 class PlayerTimelineManager(
@@ -32,7 +33,7 @@ class PlayerTimelineManager(
     var isUserTrackingSeek: Boolean = false
         private set
 
-    var showRemainingTime: Boolean = settingsPrefs.getInt("show_remaining_time", 1) != 0
+    var showRemainingTime: Boolean = PreferenceHelper.safeGetBoolean(settingsPrefs, "show_remaining_time", true)
         private set
 
     init {
@@ -68,7 +69,7 @@ class PlayerTimelineManager(
 
     fun toggleRemainingTime(): Boolean {
         showRemainingTime = !showRemainingTime
-        settingsPrefs.edit().putInt("show_remaining_time", if (showRemainingTime) 1 else 0).apply()
+        settingsPrefs.edit().putBoolean("show_remaining_time", showRemainingTime).apply()
         AppBackupManager.backupToStorageAsync(context)
         return showRemainingTime
     }
@@ -152,6 +153,6 @@ class PlayerTimelineManager(
     }
 
     fun syncFromPreferences() {
-        showRemainingTime = settingsPrefs.getInt("show_remaining_time", 1) != 0
+        showRemainingTime = PreferenceHelper.safeGetBoolean(settingsPrefs, "show_remaining_time", true)
     }
 }
