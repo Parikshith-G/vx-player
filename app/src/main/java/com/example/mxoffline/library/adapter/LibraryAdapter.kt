@@ -187,7 +187,7 @@ class LibraryAdapter(
                 val resBadge = if (video.resolution.isNotBlank()) " · ${video.resolution}" else ""
                 holder.views.subtitle.text = "$sizeStr$resBadge"
 
-                val savedPos = resumePrefs.getLong("pos_${video.uri}", 0L)
+                val savedPos = com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video).maxOfOrNull { resumePrefs.getLong(it, 0L) } ?: 0L
                 if (savedPos > 3000L && video.durationMs > 0) {
                     holder.views.progressBar.progress = ((savedPos * 1000) / video.durationMs).toInt()
                     holder.views.progressBar.visibility = View.VISIBLE

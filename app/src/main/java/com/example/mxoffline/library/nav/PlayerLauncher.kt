@@ -1,7 +1,7 @@
 /**
  * Role: Activity launcher for video playback.
- * Responsibility: Packs playlists and target indexes into intents and launches PlayerActivity.
- * Details: Handles empty list checks and serializing URI and name lists for intent transfer.
+ * Responsibility: Packs playlists, names, sizes, and target indexes into intents and launches PlayerActivity.
+ * Details: Handles empty list checks and serializing URI and metadata lists for intent transfer.
  */
 package com.example.mxoffline.library.nav
 
@@ -17,6 +17,7 @@ object PlayerLauncher {
             Intent(context, PlayerActivity::class.java)
                 .putExtra("uris", ArrayList(videos.map { it.uri.toString() }))
                 .putExtra("names", ArrayList(videos.map { it.name }))
+                .putExtra("sizes", LongArray(videos.size) { videos[it].sizeBytes })
                 .putExtra("index", index)
         )
     }

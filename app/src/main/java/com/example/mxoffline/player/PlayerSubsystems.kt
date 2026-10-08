@@ -52,6 +52,7 @@ class PlayerSubsystems(
             uris: ArrayList<String>,
             names: ArrayList<String>,
             initialIndex: Int,
+            sizes: ArrayList<Long> = arrayListOf(),
             deleteLauncher: ActivityResultLauncher<IntentSenderRequest>,
             quickButtonsCallbacks: PlayerQuickButtonsManager.Callbacks,
             isPlayerPlaying: () -> Boolean,
@@ -80,7 +81,7 @@ class PlayerSubsystems(
             val seen = PlayerSeenManager(activity, seenPrefs)
             val audioBoost = PlayerAudioBoostManager()
             val header = PlayerStatusHeaderManager(activity, settingsPrefs, ui.persistentStatusHeader, ui.topTimeStatusView, ui.batteryText, ui.clockText)
-            val playlist = PlayerPlaylistController(activity, uris, names, initialIndex) { onPlaylistIndexChanged() }
+            val playlist = PlayerPlaylistController(activity, uris, names, initialIndex, sizes) { onPlaylistIndexChanged() }
             val quickButtons = PlayerQuickButtonsManager(activity, settingsPrefs, handler, ui.quickButtonsLayout, hud, deleteLauncher, quickButtonsCallbacks)
             val timeline = PlayerTimelineManager(activity, settingsPrefs, handler, ui.seekBar, ui.timeView, ui.remainingTimeView, hud, onSeekStop, onReachEndThreshold)
             val resume = PlayerResumeManager(resumePrefs, handler, ui.resumeBanner, ui.resumeText)

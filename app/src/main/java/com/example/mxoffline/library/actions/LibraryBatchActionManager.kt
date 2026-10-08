@@ -65,7 +65,7 @@ class LibraryBatchActionManager(
                     }
                 }
                 editor.apply()
-                AppBackupManager.backupToStorageAsync(activity)
+                AppBackupManager.clearBackupData(activity)
                 onDataChanged()
                 Toast.makeText(activity, "Seen history cleared", Toast.LENGTH_SHORT).show()
             }
@@ -131,13 +131,13 @@ class LibraryBatchActionManager(
                 }
                 if (success) {
                     deletedCount++
-                    seenEditor.remove("seen_${video.uri}")
-                    resumeEditor.remove("pos_${video.uri}")
+                    for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)) seenEditor.remove(k)
+                    for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video)) resumeEditor.remove(k)
                 }
             }
             seenEditor.apply()
             resumeEditor.apply()
-            AppBackupManager.backupToStorageAsync(activity)
+            AppBackupManager.clearBackupData(activity)
 
             mainHandler.post {
                 onDataChanged()
@@ -150,11 +150,12 @@ class LibraryBatchActionManager(
         val seenEditor = seenPrefs.edit()
         val resumeEditor = resumePrefs.edit()
         for (video in videos) {
-            seenEditor.remove("seen_${video.uri}")
-            resumeEditor.remove("pos_${video.uri}")
+            for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)) seenEditor.remove(k)
+            for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video)) resumeEditor.remove(k)
         }
         seenEditor.apply()
         resumeEditor.apply()
+        AppBackupManager.clearBackupData(activity)
         onDataChanged()
         Toast.makeText(activity, "Deleted ${videos.size} seen video(s)", Toast.LENGTH_SHORT).show()
         pendingBatchDeleteVideos = emptyList()

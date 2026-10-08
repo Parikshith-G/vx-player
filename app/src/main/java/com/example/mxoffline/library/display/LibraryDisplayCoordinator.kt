@@ -25,16 +25,44 @@ class LibraryDisplayCoordinator(
     private val actionManager: LibraryBatchActionManager
 ) {
 
+    fun getSavedResumePosition(video: VideoItem): Long {
+        val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video)
+        var maxPos = 0L
+        for (k in keys) {
+            val p = resumePrefs.getLong(k, 0L)
+            if (p > maxPos) maxPos = p
+        }
+        return maxPos
+    }
+
     fun getRecentVideos(allVideos: List<VideoItem>): List<VideoItem> {
         return allVideos.filter {
-            resumePrefs.getLong("pos_${it.uri}", 0L) > 3000L
-        }.sortedByDescending { resumePrefs.getLong("pos_${it.uri}", 0L) }
+            getSavedResumePosition(it) > 3000L
+        }.sortedByDescending { getSavedResumePosition(it) }
+    }
+
+    fun isVideoSeen(video: VideoItem): Boolean {
+        val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)
+        for (k in keys) {
+            if (seenPrefs.contains(k)) return true
+        }
+        return false
+    }
+
+    fun getSeenTimestamp(video: VideoItem): Long {
+        val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)
+        var maxTime = 0L
+        for (k in keys) {
+            val t = seenPrefs.getLong(k, 0L)
+            if (t > maxTime) maxTime = t
+        }
+        return maxTime
     }
 
     fun getSeenVideos(allVideos: List<VideoItem>): List<VideoItem> {
         return allVideos.filter {
-            seenPrefs.contains("seen_${it.uri}")
-        }.sortedByDescending { seenPrefs.getLong("seen_${it.uri}", 0L) }
+            isVideoSeen(it)
+        }.sortedByDescending { getSeenTimestamp(it) }
     }
 
     fun buildFoldersTab(
