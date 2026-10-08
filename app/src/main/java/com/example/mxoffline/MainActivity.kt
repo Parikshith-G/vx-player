@@ -91,7 +91,7 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
         if (uri != null) runCatching {
             val ok = contentResolver.openInputStream(uri)?.use { AppBackupManager.importFromStream(this, it) } ?: false
             if (ok) {
-                sortMode = prefs.getInt("sort_mode", 0)
+                sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0)
                 loadDeviceVideos()
                 Toast.makeText(this, "Preferences & Seen history restored!", Toast.LENGTH_SHORT).show()
             } else Toast.makeText(this, "Failed to parse backup file", Toast.LENGTH_SHORT).show()
@@ -123,9 +123,9 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.example.mxoffline.util.CrashProtection.install(this)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
-        AppBackupManager.autoRestoreIfAvailable(this)
-        sortMode = prefs.getInt("sort_mode", 0)
+        sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0)
         ui = LibraryUiBuilder.build(this, this)
         setContentView(ui.root)
 
@@ -137,11 +137,18 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
         setupBackNavigation()
         ui.updateTabStyles(currentTab, this)
         checkPermissionsAndLoad()
+        AppBackupManager.autoRestoreAsync(this) { restored ->
+            if (restored) mainHandler.post {
+                sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0)
+                refreshCurrentDisplay()
+            }
+        }
     }
 
     override fun onPause() { super.onPause(); AppBackupManager.backupToStorageAsync(this) }
     override fun onResume() {
         super.onResume()
+        com.example.mxoffline.util.CrashProtection.checkAndNotifyCrash(this)
         if (LibraryPermissionHelper.hasPermission(this)) {
             if (seenPrefs.all.isEmpty() && resumePrefs.all.isEmpty()) executor.execute { if (AppBackupManager.autoRestoreIfAvailable(this@MainActivity)) mainHandler.post { refreshCurrentDisplay() } }
             loadDeviceVideos()
@@ -258,7 +265,7 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
             this,
             onExport = { backupExportLauncher.launch(AppBackupManager.BACKUP_FILENAME) },
             onImport = { backupImportLauncher.launch(arrayOf("application/json", "*/*")) },
-            onRestoreSuccess = { sortMode = prefs.getInt("sort_mode", 0); loadDeviceVideos() }
+            onRestoreSuccess = { sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0); loadDeviceVideos() }
         )
     }
 }

@@ -12,6 +12,7 @@ import com.example.mxoffline.library.sort.LibrarySortManager
 import com.example.mxoffline.model.FolderItem
 import com.example.mxoffline.model.SafEntry
 import com.example.mxoffline.model.VideoItem
+import com.example.mxoffline.util.PreferenceHelper
 
 data class DisplayResult(
     val items: List<LibraryListItem>,
@@ -29,7 +30,7 @@ class LibraryDisplayCoordinator(
         val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video)
         var maxPos = 0L
         for (k in keys) {
-            val p = resumePrefs.getLong(k, 0L)
+            val p = PreferenceHelper.safeGetLong(resumePrefs, k, 0L)
             if (p > maxPos) maxPos = p
         }
         return maxPos
@@ -53,7 +54,7 @@ class LibraryDisplayCoordinator(
         val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)
         var maxTime = 0L
         for (k in keys) {
-            val t = seenPrefs.getLong(k, 0L)
+            val t = PreferenceHelper.safeGetLong(seenPrefs, k, 0L)
             if (t > maxTime) maxTime = t
         }
         return maxTime

@@ -15,6 +15,7 @@ import android.widget.TextView
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.mxoffline.player.PlayerHudController
 import com.example.mxoffline.util.AppBackupManager
+import com.example.mxoffline.util.PreferenceHelper
 import com.example.mxoffline.util.TimeFormatter
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -30,7 +31,7 @@ class PlayerStatusHeaderManager(
 ) {
 
     private val clockFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
-    var topTimeMode: Int = settingsPrefs.getInt("top_time_mode", 1) // 1: done / remaining, 0: done / total
+    var topTimeMode: Int = PreferenceHelper.safeGetInt(settingsPrefs, "top_time_mode", 1) // 1: done / remaining, 0: done / total
         private set
 
     fun cycleTopTimeMode(hud: PlayerHudController?): String {
@@ -65,7 +66,7 @@ class PlayerStatusHeaderManager(
     }
 
     fun syncFromPreferences() {
-        topTimeMode = settingsPrefs.getInt("top_time_mode", 1)
+        topTimeMode = PreferenceHelper.safeGetInt(settingsPrefs, "top_time_mode", 1)
     }
 
     private fun getBatteryPercentage(): Int {

@@ -64,9 +64,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.example.mxoffline.util.CrashProtection.install(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        AppBackupManager.autoRestoreIfAvailable(this)
         ui = PlayerUiBuilder.build(this)
         setContentView(ui.root)
 
@@ -93,9 +93,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             names.add(name); sizes.add(size); index = 0
         }
 
-        preferSoftwareDecoder = settingsPrefs.getBoolean("sw_decoder", false)
-        currentPlaybackSpeed = settingsPrefs.getFloat("playback_speed", 1.0f)
-        backgroundPlayEnabled = settingsPrefs.getBoolean("bg_play", false)
+        preferSoftwareDecoder = com.example.mxoffline.util.PreferenceHelper.safeGetBoolean(settingsPrefs, "sw_decoder", false)
+        currentPlaybackSpeed = com.example.mxoffline.util.PreferenceHelper.safeGetFloat(settingsPrefs, "playback_speed", 1.0f)
+        backgroundPlayEnabled = com.example.mxoffline.util.PreferenceHelper.safeGetBoolean(settingsPrefs, "bg_play", false)
 
         s = PlayerSubsystems.create(
             this, ui, handler, settingsPrefs, resumePrefs, seenPrefs, uris, names, index, sizes, deleteLauncher, this,
@@ -232,7 +232,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     }
 
     private fun seekBy(delta: Long) {
-        if (::player.isInitialized) player.seekTo((player.currentPosition + delta).coerceIn(0L, player.duration.coerceAtLeast(0)))
+        if (!::player.isInitialized) return
+        val cur = player.currentPosition.coerceAtLeast(0L)
+        val dur = if (player.duration > 0) player.duration else Long.MAX_VALUE
+        player.seekTo((cur + delta).coerceIn(0L, dur))
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) s.controlsLock.hideSystemBars() }
@@ -271,10 +274,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onVideoDeletedSuccess() {
         if (!::player.isInitialized) return
         val (newIdx, empty) = s.playlist.removeCurrent()
-        if (empty) { player.stop(); player.clearMediaItems(); finish() }
-        else { player.removeMediaItem(newIdx); player.seekTo(newIdx, 0L); player.play(); onPlaylistIndexChanged() }
+        if (empty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(newIdx); player.seekTo(newIdx, 0L); player.play(); onPlaylistIndexChanged() }
     }
-
     override fun onSkip90Clicked() = skipForward90s()
     private fun skipForward90s() { seekBy(90_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
 
@@ -282,12 +283,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun getCurrentUri() = s.playlist.getCurrentUri(); override fun getCurrentName() = s.playlist.getCurrentName()
     override fun getOrientationLabel() = s.screen.getOrientationLabel(); override fun getAspectLabel() = s.screen.getAspectLabel()
     override fun isSoftwareDecoder() = preferSoftwareDecoder
-
     override fun onCustomizeQuickButtons() = s.quickButtons.showCustomizeDialog()
     override fun onSpeedDialog() = onSpeedClicked(null); override fun onCycleAspectRatio() = onAspectClicked()
     override fun onCycleOrientation() = onOrientationClicked(); override fun onAudioTrackDialog() = onAudioClicked()
-    override fun onSubtitleDialog() = onSubtitleClicked(); override fun onToggleDecoder() = onDecoderClicked()
-    override fun onSleepTimerDialog() = onTimerClicked()
+    override fun onSubtitleDialog() = onSubtitleClicked(); override fun onToggleDecoder() = onDecoderClicked(); override fun onSleepTimerDialog() = onTimerClicked()
     override fun onToggleBackgroundPlay(): Boolean { backgroundPlayEnabled = !backgroundPlayEnabled; settingsPrefs.edit().putBoolean("bg_play", backgroundPlayEnabled).apply(); s.hud.showQuickFeedback("Background Play: ${if (backgroundPlayEnabled) "On" else "Off"}"); return backgroundPlayEnabled }
     override fun onVideoInfoDialog() = s.dialogs?.showVideoInfoDialog(s.playlist.getCurrentName(), preferSoftwareDecoder) ?: Unit
     override fun onEnterPip() = if (::player.isInitialized) s.pip.enterPip(player, ui.playerView, { ui.overlayContainer.visibility = View.GONE; s.header.setVisible(false); ui.lockFloatingBtn.visibility = View.GONE }, { ui.overlayContainer.visibility = View.VISIBLE; s.header.setVisible(true) }) else Unit
