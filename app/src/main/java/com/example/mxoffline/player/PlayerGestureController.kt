@@ -9,6 +9,7 @@ import android.view.Window
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.mxoffline.util.UiUtils
+import com.example.mxoffline.util.AppBackupManager
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -53,6 +54,8 @@ class PlayerGestureController(
     private var holdStartX = 0f
     private var holdBaseSpeed = 2.0f
     private var currentHoldSpeed = 2.0f
+    private var rememberedHoldSpeed: Float = context.getSharedPreferences("player_settings", Context.MODE_PRIVATE)
+        .getFloat("hold_speed", 2.0f).coerceIn(0.25f, 8.0f)
     private var pendingSingleTap: Runnable? = null
     private val touchSlop = (ViewConfiguration.get(context).scaledTouchSlop / 2).coerceAtLeast(8)
 
@@ -61,7 +64,8 @@ class PlayerGestureController(
             gestureMode = GESTURE_HOLD_BOOST
             originalSpeedBeforeBoost = player.playbackParameters.speed
             wasPlayingBeforeBoost = player.isPlaying
-            holdBaseSpeed = 2.0f
+            holdBaseSpeed = context.getSharedPreferences("player_settings", Context.MODE_PRIVATE)
+                .getFloat("hold_speed", 2.0f).coerceIn(0.25f, 8.0f)
             currentHoldSpeed = holdBaseSpeed
             holdStartX = gestureStartX
             player.playbackParameters = PlaybackParameters(currentHoldSpeed, 1.0f)
@@ -205,6 +209,12 @@ class PlayerGestureController(
 
                 when (gestureMode) {
                     GESTURE_HOLD_BOOST -> {
+                        rememberedHoldSpeed = currentHoldSpeed
+                        context.getSharedPreferences("player_settings", Context.MODE_PRIVATE)
+                            .edit()
+                            .putFloat("hold_speed", rememberedHoldSpeed)
+                            .apply()
+                        AppBackupManager.backupToStorageAsync(context)
                         player.playbackParameters = PlaybackParameters(originalSpeedBeforeBoost, 1.0f)
                         if (!wasPlayingBeforeBoost) {
                             player.pause()
