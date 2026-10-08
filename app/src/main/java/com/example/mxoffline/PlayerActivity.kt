@@ -92,7 +92,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private lateinit var batteryText: TextView
     private lateinit var clockText: TextView
     private lateinit var topTimeStatusView: TextView
-    private var topTimeStatusMode = 0 // 0: "00:00 / 00:00", 1: "00:00 (-00:00)"
+    private var topTimeStatusMode = 1 // 1: "00:00 / -00:00" (time done / time remaining), 0: "00:00 / 00:00" (time done / total time)
     private lateinit var quickButtonsLayout: LinearLayout
     private var speedCircularBtn: TextView? = null
     private var decoderCircularBtn: TextView? = null
@@ -176,9 +176,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     private var controlsVisible = true
     private var isScreenLocked = false
     private var isMuted = false
-    private var showRemainingTime = false
+    private var showRemainingTime = true
     private var currentAspectModeIndex = 0
-    private var currentOrientationMode = 0
+    private var currentOrientationMode = 1
     private var repeatMode = 0
     private var preferSoftwareDecoder = false
     private var backgroundPlayEnabled = false
@@ -220,8 +220,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         backgroundPlayEnabled = settingsPrefs.getBoolean("bg_play", false)
         preferSoftwareDecoder = settingsPrefs.getBoolean("sw_decoder", false)
         currentPlaybackSpeed = settingsPrefs.getFloat("playback_speed", 1.0f)
-        currentOrientationMode = settingsPrefs.getInt("orientation_mode", 0)
+        currentOrientationMode = settingsPrefs.getInt("orientation_mode", 1)
         currentAspectModeIndex = settingsPrefs.getInt("aspect_mode", 0)
+        showRemainingTime = settingsPrefs.getBoolean("show_remaining_time", true)
+        topTimeStatusMode = settingsPrefs.getInt("top_time_mode", 1)
 
         buildUi()
         initPlayer()
@@ -419,7 +421,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             setPadding(dp(4), dp(2), dp(8), dp(2))
             setOnClickListener {
                 topTimeStatusMode = (topTimeStatusMode + 1) % 2
+                settingsPrefs.edit().putInt("top_time_mode", topTimeStatusMode).apply()
                 updateStatusHeader()
+                hudController.showQuickFeedback(if (topTimeStatusMode == 1) "Time: Done / Remaining" else "Time: Done / Total")
             }
         }
 
@@ -447,8 +451,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             gravity = Gravity.CENTER_VERTICAL
         }
 
-        persistentStatusHeader.addView(topTimeStatusView, LinearLayout.LayoutParams(-2, -2))
         persistentStatusHeader.addView(statusSpacer, LinearLayout.LayoutParams(0, dp(1), 1f))
+        persistentStatusHeader.addView(topTimeStatusView, LinearLayout.LayoutParams(-2, -2))
         persistentStatusHeader.addView(batteryText, LinearLayout.LayoutParams(-2, -2))
         persistentStatusHeader.addView(clockText, LinearLayout.LayoutParams(-2, -2))
 
@@ -522,6 +526,12 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             includeFontPadding = false
             setTextColor(Color.WHITE)
             setPadding(0, 0, dp(8), 0)
+            setOnClickListener {
+                showRemainingTime = !showRemainingTime
+                settingsPrefs.edit().putBoolean("show_remaining_time", showRemainingTime).apply()
+                updateTimeDisplay()
+                hudController.showQuickFeedback(if (showRemainingTime) "Time: Remaining (-)" else "Time: Total")
+            }
         }
         seekBar = SeekBar(this).apply {
             max = 1000
@@ -536,7 +546,12 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             includeFontPadding = false
             setTextColor(0xffbbbec6.toInt())
             setPadding(dp(8), 0, 0, 0)
-            setOnClickListener { showRemainingTime = !showRemainingTime; updateTimeDisplay() }
+            setOnClickListener {
+                showRemainingTime = !showRemainingTime
+                settingsPrefs.edit().putBoolean("show_remaining_time", showRemainingTime).apply()
+                updateTimeDisplay()
+                hudController.showQuickFeedback(if (showRemainingTime) "Time: Remaining (-)" else "Time: Total")
+            }
         }
         timelineRow.addView(timeView)
         timelineRow.addView(seekBar, LinearLayout.LayoutParams(0, dp(40), 1f))
@@ -855,6 +870,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     if (currentIdx in uris.indices) {
                         index = currentIdx
                         updateTitle()
+                        markCurrentVideoAsSeen()
                         updateMarkDoneButtonState()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             updatePipParams()
@@ -868,11 +884,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 p.prepare()
                 p.playbackParameters = PlaybackParameters(currentPlaybackSpeed, 1.0f)
                 p.playWhenReady = true
+                markCurrentVideoAsSeen()
             }
         }
 
         updateTitle()
         applyOrientation(showFeedback = false)
+        markCurrentVideoAsSeen()
         updateMarkDoneButtonState()
     }
 
@@ -1035,6 +1053,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             player.prepare()
             player.play()
             updateTitle()
+            markCurrentVideoAsSeen()
             updateMarkDoneButtonState()
         } else if (repeatMode == 1) {
             index = 0
@@ -1042,6 +1061,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             player.prepare()
             player.play()
             updateTitle()
+            markCurrentVideoAsSeen()
             updateMarkDoneButtonState()
         } else {
             Toast.makeText(this, "End of playlist", Toast.LENGTH_SHORT).show()
@@ -1060,6 +1080,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             player.prepare()
             player.play()
             updateTitle()
+            markCurrentVideoAsSeen()
             updateMarkDoneButtonState()
         } else {
             player.seekTo(0L)
@@ -1228,6 +1249,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 player.prepare()
                 player.play()
                 updateTitle()
+                markCurrentVideoAsSeen()
                 updateMarkDoneButtonState()
             },
             onCycleRepeatMode = {
@@ -1611,7 +1633,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                 "$elapsed / ${TimeFormatter.formatTime(d)}"
             } else {
                 val rem = (d - p).coerceAtLeast(0)
-                "$elapsed (-${TimeFormatter.formatTime(rem)})"
+                "$elapsed / -${TimeFormatter.formatTime(rem)}"
             }
         }
     }
