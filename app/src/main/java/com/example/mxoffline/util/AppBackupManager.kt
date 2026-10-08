@@ -32,6 +32,7 @@ object AppBackupManager {
         settingsObj.put("show_remaining_time", settingsPrefs.getBoolean("show_remaining_time", true))
         settingsObj.put("sw_decoder", settingsPrefs.getBoolean("sw_decoder", false))
         settingsObj.put("bg_play", settingsPrefs.getBoolean("bg_play", false))
+        settingsObj.put("hold_speed", settingsPrefs.getFloat("hold_speed", 2.0f).toDouble())
         val pinned = settingsPrefs.getStringSet("pinned_buttons", null)
         if (pinned != null) {
             settingsObj.put("pinned_buttons", JSONArray(pinned))
@@ -82,6 +83,7 @@ object AppBackupManager {
                 if (settingsObj.has("show_remaining_time")) editor.putBoolean("show_remaining_time", settingsObj.getBoolean("show_remaining_time"))
                 if (settingsObj.has("sw_decoder")) editor.putBoolean("sw_decoder", settingsObj.getBoolean("sw_decoder"))
                 if (settingsObj.has("bg_play")) editor.putBoolean("bg_play", settingsObj.getBoolean("bg_play"))
+                if (settingsObj.has("hold_speed")) editor.putFloat("hold_speed", settingsObj.getDouble("hold_speed").toFloat())
                 if (settingsObj.has("pinned_buttons")) {
                     val arr = settingsObj.getJSONArray("pinned_buttons")
                     val set = HashSet<String>()
