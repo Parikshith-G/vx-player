@@ -108,13 +108,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             onPipDismiss = { if (::player.isInitialized) { s.resume.savePosition(player, s.playlist.uris, s.playlist.index); player.pause() }; finish() }
         )
 
-        initPlayer()
-        setupListeners()
-        s.pip.register()
-        setupBackNavigation()
-        s.controlsLock.hideSystemBars()
-        s.controlsLock.scheduleHideControls()
-        handler.post(progressTracker)
+        initPlayer(); setupListeners(); s.pip.register(); setupBackNavigation()
+        s.controlsLock.hideSystemBars(); s.controlsLock.scheduleHideControls(); handler.post(progressTracker)
     }
 
     private fun setupBackNavigation() {
@@ -153,20 +148,24 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         ui.menuButton.setOnClickListener { PlayerMenuHelper.showHamburgerMenu(this, backgroundPlayEnabled, this) }
         ui.topTimeStatusView.setOnClickListener { s.header.cycleTopTimeMode(s.hud) }
         ui.lockBtn.setOnClickListener { s.controlsLock.lockScreen() }; ui.lockFloatingBtn.setOnClickListener { s.controlsLock.unlockScreen() }
-        ui.repeatBtn.setOnClickListener { s.hud.showQuickFeedback(s.playlist.cycleRepeatMode()) }
+        ui.seekBack5Btn.setOnClickListener { seekBy(-5_000); s.hud.showQuickFeedback("⟲ 5s") }
+        s.timeline.setupHoldToContinuousSeek(ui.seekBack5Btn, false, { player }, { s.controlsLock.scheduleHideControls() })
+        ui.prevBtn.setOnClickListener { s.playlist.previousVideo(player) }
+        s.timeline.setupHoldToContinuousSeek(ui.prevBtn, false, { player }, { s.controlsLock.scheduleHideControls() })
         ui.playPauseBtn.setOnClickListener { togglePlay() }
-        ui.rewindBtn.setOnClickListener { seekBy(-10_000) }; ui.forwardBtn.setOnClickListener { seekBy(10_000) }
         ui.nextBtn.setOnClickListener { s.playlist.nextVideo(player) }
+        s.timeline.setupHoldToContinuousSeek(ui.nextBtn, true, { player }, { s.controlsLock.scheduleHideControls() })
         ui.markDoneBtn.setOnClickListener {
             val marked = s.seen.toggleMarkCurrentVideoAsSeen(s.playlist.uris, s.playlist.index)
             s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist.uris, s.playlist.index)
             s.hud.showQuickFeedback(if (marked) "Marked as Seen ✓" else "Removed from Seen")
         }
+        ui.seekFwd5Btn.setOnClickListener { seekBy(5_000); s.hud.showQuickFeedback("5s ⟳") }
+        s.timeline.setupHoldToContinuousSeek(ui.seekFwd5Btn, true, { player }, { s.controlsLock.scheduleHideControls() })
+        ui.pipBtn.setOnClickListener { onEnterPip() }
         ui.restartBtn.setOnClickListener { player.seekTo(0); s.resume.clearPosition(s.playlist.uris, s.playlist.index) }
         val toggleTime: (View) -> Unit = { s.timeline.toggleRemainingTime() }
         ui.timeView.setOnClickListener(toggleTime); ui.remainingTimeView.setOnClickListener(toggleTime)
-        s.timeline.setupHoldToContinuousSeek(ui.rewindBtn, false, { player }, { s.controlsLock.scheduleHideControls() })
-        s.timeline.setupHoldToContinuousSeek(ui.forwardBtn, true, { player }, { s.controlsLock.scheduleHideControls() })
     }
 
     private fun onPlaylistIndexChanged() {
