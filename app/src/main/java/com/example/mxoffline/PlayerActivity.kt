@@ -11,6 +11,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Icon
@@ -130,8 +131,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
     companion object {
         private const val ACTION_PIP_PLAY = "com.example.mxoffline.PIP_PLAY"
         private const val ACTION_PIP_PAUSE = "com.example.mxoffline.PIP_PAUSE"
-        private const val ACTION_PIP_REWIND = "com.example.mxoffline.PIP_REWIND"
-        private const val ACTION_PIP_FORWARD = "com.example.mxoffline.PIP_FORWARD"
+        private const val ACTION_PIP_PREV = "com.example.mxoffline.PIP_PREV"
+        private const val ACTION_PIP_NEXT = "com.example.mxoffline.PIP_NEXT"
     }
 
     private val pipReceiver = object : BroadcastReceiver() {
@@ -139,6 +140,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             if (!::player.isInitialized) return
             when (intent?.action) {
                 ACTION_PIP_PLAY -> {
+                    if (player.playerError != null || player.playbackState == Player.STATE_IDLE) {
+                        player.prepare()
+                    }
                     player.play()
                     updatePipParams()
                 }
@@ -146,14 +150,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     player.pause()
                     updatePipParams()
                 }
-                ACTION_PIP_REWIND -> {
-                    val pos = (player.currentPosition - 10000L).coerceAtLeast(0L)
-                    player.seekTo(pos)
+                ACTION_PIP_PREV -> {
+                    previousVideo()
+                    updatePipParams()
                 }
-                ACTION_PIP_FORWARD -> {
-                    val duration = player.duration
-                    val target = player.currentPosition + 10000L
-                    player.seekTo(if (duration > 0) target.coerceAtMost(duration) else target)
+                ACTION_PIP_NEXT -> {
+                    nextVideo()
+                    updatePipParams()
                 }
             }
         }
@@ -217,6 +220,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         backgroundPlayEnabled = settingsPrefs.getBoolean("bg_play", false)
         preferSoftwareDecoder = settingsPrefs.getBoolean("sw_decoder", false)
         currentPlaybackSpeed = settingsPrefs.getFloat("playback_speed", 1.0f)
+        currentOrientationMode = settingsPrefs.getInt("orientation_mode", 0)
+        currentAspectModeIndex = settingsPrefs.getInt("aspect_mode", 0)
 
         buildUi()
         initPlayer()
@@ -275,9 +280,16 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         val dp = { v: Int -> UiUtils.dp(this, v) }
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
 
+        val aspectModes = listOf(
+            AspectRatioFrameLayout.RESIZE_MODE_FIT,
+            AspectRatioFrameLayout.RESIZE_MODE_FILL,
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        )
+        val initialResizeMode = aspectModes.getOrElse(currentAspectModeIndex) { AspectRatioFrameLayout.RESIZE_MODE_FIT }
+
         playerView = PlayerView(this).apply {
             useController = false
-            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            resizeMode = initialResizeMode
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             subtitleView?.setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleFontSizeSp)
         }
@@ -829,12 +841,24 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
                     ).show()
                 }
 
+                override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                    if (currentOrientationMode == 3) {
+                        applyOrientation(showFeedback = false)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        updatePipParams()
+                    }
+                }
+
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     val currentIdx = p.currentMediaItemIndex
                     if (currentIdx in uris.indices) {
                         index = currentIdx
                         updateTitle()
                         updateMarkDoneButtonState()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            updatePipParams()
+                        }
                     }
                 }
             })
@@ -848,7 +872,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         }
 
         updateTitle()
-        applyOrientation()
+        applyOrientation(showFeedback = false)
         updateMarkDoneButtonState()
     }
 
@@ -1101,6 +1125,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         )
         currentAspectModeIndex = (currentAspectModeIndex + 1) % modes.size
         val (label, mode) = modes[currentAspectModeIndex]
+        settingsPrefs.edit().putInt("aspect_mode", currentAspectModeIndex).apply()
         playerView.resizeMode = mode
         aspectCircularBtn?.text = "📐 $label"
         hudController.showQuickFeedback("Screen: $label")
@@ -1108,32 +1133,36 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     private fun cycleOrientation() {
         currentOrientationMode = (currentOrientationMode + 1) % 4
-        applyOrientation()
+        settingsPrefs.edit().putInt("orientation_mode", currentOrientationMode).apply()
+        applyOrientation(showFeedback = true)
     }
 
-    private fun applyOrientation() {
+    private fun applyOrientation(showFeedback: Boolean = true) {
         when (currentOrientationMode) {
             0 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
-                hudController.showQuickFeedback("Orientation: Auto")
+                if (showFeedback) hudController.showQuickFeedback("Orientation: Auto")
                 orientationCircularBtn?.text = "🔄 Auto"
             }
             1 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                hudController.showQuickFeedback("Orientation: Landscape")
+                if (showFeedback) hudController.showQuickFeedback("Orientation: Landscape")
                 orientationCircularBtn?.text = "🔄 Land"
             }
             2 -> {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                hudController.showQuickFeedback("Orientation: Portrait")
+                if (showFeedback) hudController.showQuickFeedback("Orientation: Portrait")
                 orientationCircularBtn?.text = "🔄 Port"
             }
             3 -> {
-                val format = player.videoFormat
-                val isWide = format != null && format.width > format.height
+                val size = if (::player.isInitialized) player.videoSize else null
+                val format = if (::player.isInitialized) player.videoFormat else null
+                val width = if (size != null && size.width > 0) size.width else (format?.width ?: 0)
+                val height = if (size != null && size.height > 0) size.height else (format?.height ?: 0)
+                val isWide = width > height
                 requestedOrientation = if (isWide) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                hudController.showQuickFeedback("Orientation: Match Video")
+                if (showFeedback) hudController.showQuickFeedback("Orientation: Match Video")
                 orientationCircularBtn?.text = "🔄 Video"
             }
         }
@@ -1610,8 +1639,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             val filter = IntentFilter().apply {
                 addAction(ACTION_PIP_PLAY)
                 addAction(ACTION_PIP_PAUSE)
-                addAction(ACTION_PIP_REWIND)
-                addAction(ACTION_PIP_FORWARD)
+                addAction(ACTION_PIP_PREV)
+                addAction(ACTION_PIP_NEXT)
             }
             ContextCompat.registerReceiver(this, pipReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         }
@@ -1625,35 +1654,55 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
 
     private fun buildPipParams(): PictureInPictureParams? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
-        val format = if (::player.isInitialized) player.videoFormat else null
-        val rational = if (format != null && format.width > 0 && format.height > 0) {
-            val ratio = format.width.toFloat() / format.height.toFloat()
-            if (ratio in 0.42f..2.38f) Rational(format.width, format.height) else Rational(16, 9)
-        } else Rational(16, 9)
+        val vSize = if (::player.isInitialized) player.videoSize else null
+        val vFormat = if (::player.isInitialized) player.videoFormat else null
+        val width = if (vSize != null && vSize.width > 0) vSize.width else (vFormat?.width ?: 0)
+        val height = if (vSize != null && vSize.height > 0) vSize.height else (vFormat?.height ?: 0)
+
+        val rational = if (width > 0 && height > 0) {
+            val ratio = width.toFloat() / height.toFloat()
+            if (ratio in 0.42f..2.38f) {
+                Rational(width, height)
+            } else if (ratio < 0.42f) {
+                Rational(42, 100)
+            } else {
+                Rational(238, 100)
+            }
+        } else {
+            Rational(16, 9)
+        }
 
         val builder = PictureInPictureParams.Builder().setAspectRatio(rational)
+
+        // Set sourceRectHint so transition is smooth and matches MX Player
+        val surfaceView = playerView.videoSurfaceView ?: playerView
+        val sourceRect = Rect()
+        surfaceView.getGlobalVisibleRect(sourceRect)
+        if (sourceRect.width() > 0 && sourceRect.height() > 0) {
+            builder.setSourceRectHint(sourceRect)
+        }
 
         val isPlaying = ::player.isInitialized && player.isPlaying
         val actions = ArrayList<RemoteAction>()
 
-        // 1. Rewind 10s
-        val rewindIntent = PendingIntent.getBroadcast(
-            this, 1, Intent(ACTION_PIP_REWIND).setPackage(packageName),
+        // 1. Previous Video
+        val prevIntent = PendingIntent.getBroadcast(
+            this, 1, Intent(ACTION_PIP_PREV).apply { `package` = packageName },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         actions.add(
             RemoteAction(
-                Icon.createWithResource(this, android.R.drawable.ic_media_rew),
-                "Rewind",
-                "Rewind 10 seconds",
-                rewindIntent
+                Icon.createWithResource(this, android.R.drawable.ic_media_previous),
+                "Previous",
+                "Previous video",
+                prevIntent
             )
         )
 
         // 2. Play / Pause
         if (isPlaying) {
             val pauseIntent = PendingIntent.getBroadcast(
-                this, 2, Intent(ACTION_PIP_PAUSE).setPackage(packageName),
+                this, 2, Intent(ACTION_PIP_PAUSE).apply { `package` = packageName },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             actions.add(
@@ -1666,7 +1715,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             )
         } else {
             val playIntent = PendingIntent.getBroadcast(
-                this, 3, Intent(ACTION_PIP_PLAY).setPackage(packageName),
+                this, 3, Intent(ACTION_PIP_PLAY).apply { `package` = packageName },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             actions.add(
@@ -1679,17 +1728,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
             )
         }
 
-        // 3. Forward 10s
-        val forwardIntent = PendingIntent.getBroadcast(
-            this, 4, Intent(ACTION_PIP_FORWARD).setPackage(packageName),
+        // 3. Next Video
+        val nextIntent = PendingIntent.getBroadcast(
+            this, 4, Intent(ACTION_PIP_NEXT).apply { `package` = packageName },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         actions.add(
             RemoteAction(
-                Icon.createWithResource(this, android.R.drawable.ic_media_ff),
-                "Forward",
-                "Forward 10 seconds",
-                forwardIntent
+                Icon.createWithResource(this, android.R.drawable.ic_media_next),
+                "Next",
+                "Next video",
+                nextIntent
             )
         )
 
@@ -1759,7 +1808,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback {
         if (::lockFloatingBtn.isInitialized && isScreenLocked) lockFloatingBtn.visibility = View.VISIBLE
         overlayContainer.visibility = if (controlsVisible) View.VISIBLE else View.GONE
         scheduleHideControls()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             updatePipParams()
         }
     }
