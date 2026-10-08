@@ -1,7 +1,7 @@
 /**
  * Role: Subsystem container and dependency aggregator for PlayerActivity.
  * Responsibility: Instantiates and holds references to player controllers, helpers, and managers.
- * Details: Bundles hud, screen, seen, audio boost, header, pip, playlist, quick buttons, timeline, and resume managers.
+ * Details: Bundles hud, screen, controls lock, seen, audio boost, header, pip, playlist, quick buttons, timeline, and resume managers.
  */
 package com.example.mxoffline.player
 
@@ -19,6 +19,7 @@ import com.example.mxoffline.player.buttons.PlayerQuickButtonsManager
 import com.example.mxoffline.player.header.PlayerStatusHeaderManager
 import com.example.mxoffline.player.pip.PlayerPipManager
 import com.example.mxoffline.player.playlist.PlayerPlaylistController
+import com.example.mxoffline.player.screen.PlayerControlsLockManager
 import com.example.mxoffline.player.screen.PlayerScreenController
 import com.example.mxoffline.player.seen.PlayerSeenManager
 import com.example.mxoffline.player.timeline.PlayerTimelineManager
@@ -27,6 +28,7 @@ import com.example.mxoffline.player.ui.PlayerUiViews
 class PlayerSubsystems(
     val hud: PlayerHudController,
     val screen: PlayerScreenController,
+    val controlsLock: PlayerControlsLockManager,
     val seen: PlayerSeenManager,
     val audioBoost: PlayerAudioBoostManager,
     val header: PlayerStatusHeaderManager,
@@ -52,6 +54,8 @@ class PlayerSubsystems(
             initialIndex: Int,
             deleteLauncher: ActivityResultLauncher<IntentSenderRequest>,
             quickButtonsCallbacks: PlayerQuickButtonsManager.Callbacks,
+            isPlayerPlaying: () -> Boolean,
+            isInPip: () -> Boolean,
             onPlaylistIndexChanged: () -> Unit,
             onSeekStop: () -> Unit,
             onReachEndThreshold: () -> Unit,
@@ -69,6 +73,10 @@ class PlayerSubsystems(
                 ui.centerSpeedHud, ui.quickFeedbackHud
             )
             val screen = PlayerScreenController(settingsPrefs)
+            val controlsLock = PlayerControlsLockManager(
+                activity, activity.window, handler, ui.overlayContainer, ui.lockFloatingBtn,
+                isPlayerPlaying, isInPip
+            )
             val seen = PlayerSeenManager(activity, seenPrefs)
             val audioBoost = PlayerAudioBoostManager()
             val header = PlayerStatusHeaderManager(activity, settingsPrefs, ui.persistentStatusHeader, ui.topTimeStatusView, ui.batteryText, ui.clockText)
@@ -78,7 +86,7 @@ class PlayerSubsystems(
             val resume = PlayerResumeManager(resumePrefs, handler, ui.resumeBanner, ui.resumeText)
             val pip = PlayerPipManager(activity, handler, onPipPlay, onPipPause, onPipPrev, onPipNext, onPipDismiss)
 
-            return PlayerSubsystems(hud, screen, seen, audioBoost, header, pip, playlist, quickButtons, timeline, resume)
+            return PlayerSubsystems(hud, screen, controlsLock, seen, audioBoost, header, pip, playlist, quickButtons, timeline, resume)
         }
     }
 
