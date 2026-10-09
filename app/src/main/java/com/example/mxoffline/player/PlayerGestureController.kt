@@ -1,6 +1,6 @@
 /**
  * Role: Touch gestures and hardware controls coordinator for PlayerActivity.
- * Responsibility: Detects vertical swipes (volume/brightness), horizontal drags (seek), and hold-to-speed gestures.
+ * Responsibility: Detects vertical swipes (volume/brightness), tap controls, and hold-to-speed gestures.
  * Details: Implements left-half brightness control, right-half volume boost, and hold-to-speed persistence.
  */
 package com.example.mxoffline.player
@@ -37,7 +37,7 @@ class PlayerGestureController(
 ) {
     companion object {
         private const val GESTURE_NONE = 0
-        private const val GESTURE_SEEK = 1
+        private const val GESTURE_SWIPE_IGNORED = 1
         private const val GESTURE_BRIGHTNESS = 2
         private const val GESTURE_VOLUME = 3
         private const val GESTURE_HOLD_BOOST = 4
@@ -46,8 +46,6 @@ class PlayerGestureController(
     private var gestureStartX = 0f
     private var gestureStartY = 0f
     private var gestureMode = GESTURE_NONE
-    private var startVideoPosition = 0L
-    private var targetSeekPosition = 0L
     private var startBrightness = 0.5f
     private var startNormalizedVolume = 0f
     private var currentBoostPercent = 0
@@ -108,7 +106,6 @@ class PlayerGestureController(
                 gestureStartX = event.x
                 gestureStartY = event.y
                 gestureMode = GESTURE_NONE
-                startVideoPosition = player.currentPosition
                 startBrightness = window.attributes.screenBrightness.takeIf { it >= 0 } ?: 0.5f
 
                 val maxSysVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat()
@@ -155,30 +152,18 @@ class PlayerGestureController(
                         if (abs(dy) >= abs(dx)) {
                             // If swipe started near top (notification shade) or bottom (system nav bar), ignore brightness & volume swipes
                             if (gestureStartY < topExclusionPx || gestureStartY > bottomExclusionPx) {
-                                gestureMode = GESTURE_NONE
+                                gestureMode = GESTURE_SWIPE_IGNORED
                             } else {
                                 // Vertical swipe: Left = Brightness, Right = Volume
                                 gestureMode = if (gestureStartX < screenWidth / 2f) GESTURE_BRIGHTNESS else GESTURE_VOLUME
                             }
                         } else {
-                            // Horizontal swipe: Seek
-                            gestureMode = GESTURE_SEEK
+                            // Horizontal swipe: seeking disabled; user seeks via seekbar or buttons
+                            gestureMode = GESTURE_SWIPE_IGNORED
                         }
                     }
 
                     when (gestureMode) {
-                        GESTURE_SEEK -> {
-                            val duration = player.duration.coerceAtLeast(0)
-                            val seekScaleSec = when {
-                                duration < 600_000 -> 90L
-                                duration < 3600_000 -> 240L
-                                else -> 600L
-                            }
-                            val deltaMs = ((dx / screenWidth) * seekScaleSec * 1000).toLong()
-                            targetSeekPosition = (startVideoPosition + deltaMs).coerceIn(0L, duration)
-                            hudController.showSeek(targetSeekPosition, deltaMs, duration)
-                        }
-
                         GESTURE_BRIGHTNESS -> {
                             val deltaRatio = -dy / (screenHeight * 0.7f)
                             val newBrightness = (startBrightness + deltaRatio).coerceIn(0.01f, 1.0f)
@@ -225,11 +210,6 @@ class PlayerGestureController(
                             player.pause()
                         }
                         hudController.hideSpeed()
-                    }
-
-                    GESTURE_SEEK -> {
-                        player.seekTo(targetSeekPosition)
-                        hudController.hideSeek()
                     }
 
                     GESTURE_BRIGHTNESS -> {
