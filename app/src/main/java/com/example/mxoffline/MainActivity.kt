@@ -206,7 +206,8 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     }
 
     private fun playSafEntry(entry: SafEntry) {
-        val videos = navigator.buildSafVideoList(safEntries)
+        val sortedSaf = LibrarySortManager.sortSafEntries(safEntries, sortMode)
+        val videos = navigator.buildSafVideoList(sortedSaf)
         val tree = navigator.treeUri ?: return
         val target = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, entry.documentId)
         PlayerLauncher.start(this, videos, videos.indexOfFirst { it.uri == target }.coerceAtLeast(0))
