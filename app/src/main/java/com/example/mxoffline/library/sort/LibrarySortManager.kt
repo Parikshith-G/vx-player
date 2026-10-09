@@ -10,6 +10,7 @@ import android.content.Context
 import com.example.mxoffline.model.FolderItem
 import com.example.mxoffline.model.SafEntry
 import com.example.mxoffline.model.VideoItem
+import com.example.mxoffline.util.NaturalOrderComparator
 
 object LibrarySortManager {
 
@@ -24,17 +25,17 @@ object LibrarySortManager {
         return when (sortMode) {
             1 -> list.sortedWith(
                 compareByDescending<FolderItem> { folder -> folder.videos.maxOfOrNull { it.dateModified } ?: 0L }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
             2 -> list.sortedWith(
                 compareByDescending<FolderItem> { folder -> folder.videos.sumOf { it.sizeBytes } }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
             3 -> list.sortedWith(
                 compareByDescending<FolderItem> { folder -> folder.videos.sumOf { it.durationMs } }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
-            else -> list.sortedBy { it.name.lowercase() }
+            else -> list.sortedWith(compareBy(NaturalOrderComparator) { it.name })
         }
     }
 
@@ -42,17 +43,17 @@ object LibrarySortManager {
         return when (sortMode) {
             1 -> list.sortedWith(
                 compareByDescending<VideoItem> { it.dateModified }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
             2 -> list.sortedWith(
                 compareByDescending<VideoItem> { it.sizeBytes }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
             3 -> list.sortedWith(
                 compareByDescending<VideoItem> { it.durationMs }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
-            else -> list.sortedBy { it.name.lowercase() }
+            else -> list.sortedWith(compareBy(NaturalOrderComparator) { it.name })
         }
     }
 
@@ -61,16 +62,16 @@ object LibrarySortManager {
             1 -> list.sortedWith(
                 compareBy<SafEntry> { !it.isDirectory }
                     .thenByDescending { it.modified ?: 0L }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
             2 -> list.sortedWith(
                 compareBy<SafEntry> { !it.isDirectory }
                     .thenByDescending { it.sizeBytes ?: 0L }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
             else -> list.sortedWith(
                 compareBy<SafEntry> { !it.isDirectory }
-                    .thenBy { it.name.lowercase() }
+                    .thenBy(NaturalOrderComparator) { it.name }
             )
         }
     }
