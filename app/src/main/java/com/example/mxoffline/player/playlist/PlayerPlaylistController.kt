@@ -11,7 +11,7 @@ import android.widget.Toast
 import androidx.media3.exoplayer.ExoPlayer
 
 class PlayerPlaylistController(
-    private val context: Context,
+    private val context: Context?,
     val uris: ArrayList<String>,
     val names: ArrayList<String>,
     initialIndex: Int,
@@ -60,7 +60,7 @@ class PlayerPlaylistController(
             onVideoSelected(index)
             return true
         } else {
-            Toast.makeText(context, "End of playlist", Toast.LENGTH_SHORT).show()
+            if (context != null) Toast.makeText(context, "End of playlist", Toast.LENGTH_SHORT).show()
             return false
         }
     }
@@ -88,7 +88,7 @@ class PlayerPlaylistController(
     }
 
     fun showPlaylistDialog(player: ExoPlayer?) {
-        if (names.isEmpty()) return
+        if (context == null || names.isEmpty()) return
         val itemsWithIndicator = names.mapIndexed { idx, name ->
             if (idx == index) "▶  $name" else "     $name"
         }.toTypedArray()
@@ -108,13 +108,16 @@ class PlayerPlaylistController(
             .show()
     }
 
-    fun removeCurrent(): Pair<Int, Boolean> {
-        if (uris.isEmpty() || index !in uris.indices) return index to true
-        uris.removeAt(index)
-        names.removeAt(index)
-        if (sizes.size > index) sizes.removeAt(index)
-        if (uris.isEmpty()) return 0 to true
+    data class RemoveResult(val removedIndex: Int, val nextIndex: Int, val isEmpty: Boolean)
+
+    fun removeCurrent(): RemoveResult {
+        if (uris.isEmpty() || index !in uris.indices) return RemoveResult(index, 0, true)
+        val removed = index
+        uris.removeAt(removed)
+        names.removeAt(removed)
+        if (sizes.size > removed) sizes.removeAt(removed)
+        if (uris.isEmpty()) return RemoveResult(removed, 0, true)
         if (index >= uris.size) index = 0
-        return index to false
+        return RemoveResult(removed, index, false)
     }
 }

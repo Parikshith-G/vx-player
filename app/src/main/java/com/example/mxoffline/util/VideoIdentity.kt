@@ -20,9 +20,8 @@ object VideoIdentity {
     fun getAllKeysForVideo(prefix: String, uriString: String, name: String, sizeBytes: Long = 0L): List<String> {
         val keys = mutableListOf<String>()
         if (uriString.isNotBlank()) keys.add(getUriKey(prefix, uriString))
-        if (name.isNotBlank()) {
-            keys.add(getNameKey(prefix, name))
-            if (sizeBytes > 0) keys.add(getMetaKey(prefix, name, sizeBytes))
+        if (name.isNotBlank() && sizeBytes > 0) {
+            keys.add(getMetaKey(prefix, name, sizeBytes))
         }
         return keys
     }

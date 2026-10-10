@@ -19,10 +19,7 @@ class PlayerSeenManager(
     fun isSeen(uriString: String?, name: String? = null, size: Long = 0L): Boolean {
         if (uriString.isNullOrEmpty() && name.isNullOrEmpty()) return false
         if (!uriString.isNullOrEmpty() && seenPrefs.contains(VideoIdentity.getUriKey("seen", uriString))) return true
-        if (!name.isNullOrEmpty()) {
-            if (size > 0 && seenPrefs.contains(VideoIdentity.getMetaKey("seen", name, size))) return true
-            if (seenPrefs.contains(VideoIdentity.getNameKey("seen", name))) return true
-        }
+        if (!name.isNullOrEmpty() && size > 0 && seenPrefs.contains(VideoIdentity.getMetaKey("seen", name, size))) return true
         return false
     }
 
