@@ -144,7 +144,7 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
 
         actionManager = LibraryBatchActionManager(this, resumePrefs, seenPrefs, executor, mainHandler, batchDeleteLauncher) { loadDeviceVideos() }
         displayCoordinator = LibraryDisplayCoordinator(resumePrefs, seenPrefs, actionManager)
-        adapter = LibraryAdapter({ v, l -> PlayerLauncher.start(this, l, l.indexOf(v).coerceAtLeast(0)) }, { f -> openDeviceFolder(f) }, { e -> if (e.isDirectory) openSafFolder(e) else playSafEntry(e) }, resumePrefs, { v, l -> showVideoActionDialog(v, l) })
+        adapter = LibraryAdapter({ v, l -> PlayerLauncher.start(this, l, l.indexOf(v).coerceAtLeast(0)) }, { f -> openDeviceFolder(f) }, { e -> if (e.isDirectory) openSafFolder(e) else playSafEntry(e) }, resumePrefs, { v, l -> showVideoActionDialog(v, l) }, { navigator.treeUri })
         ui.recyclerView.adapter = adapter
 
         setupBackNavigation()

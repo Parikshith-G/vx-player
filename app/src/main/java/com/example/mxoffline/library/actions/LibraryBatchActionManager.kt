@@ -104,10 +104,11 @@ class LibraryBatchActionManager(
         if (videos.isEmpty()) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val contentUris = videos.map { it.uri }.filter { it.scheme == "content" }
-            if (contentUris.isNotEmpty()) {
+            val isMediaStoreUri = { u: android.net.Uri -> u.scheme == "content" && u.authority == MediaStore.AUTHORITY }
+            val mediaStoreUris = videos.map { it.uri }.filter(isMediaStoreUri)
+            if (mediaStoreUris.isNotEmpty() && mediaStoreUris.size == videos.size) {
                 val launched = runCatching {
-                    val pi = MediaStore.createDeleteRequest(activity.contentResolver, contentUris)
+                    val pi = MediaStore.createDeleteRequest(activity.contentResolver, mediaStoreUris)
                     pendingBatchDeleteVideos = videos
                     batchDeleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
                     true

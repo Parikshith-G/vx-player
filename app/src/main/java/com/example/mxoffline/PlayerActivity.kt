@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.TypedValue
 import android.view.KeyEvent
@@ -53,6 +54,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     private var isMuted = false; private var preferSoftwareDecoder = false
     private var backgroundPlayEnabled = false; private var subtitleFontSizeSp = 18f; private var currentPlaybackSpeed = 1.0f
+    private var sleepTimerAtEndOfVideo = false
     private var mediaSessionManager: com.example.mxoffline.player.playback.PlayerMediaSessionManager? = null
 
     private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { if (it.resultCode == RESULT_OK) onVideoDeletedSuccess() else Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show() }
@@ -63,13 +65,24 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             val currentPos = player.currentPosition
             val currentPlayWhenReady = player.playWhenReady
             val currentIdx = s.playlist.index
+            val subName = runCatching {
+                contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(c.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)) else null
+                }
+            }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+            val subLower = subName.lowercase()
+            val mimeType = when {
+                subLower.endsWith(".vtt") || subLower.endsWith(".webvtt") -> androidx.media3.common.MimeTypes.TEXT_VTT
+                subLower.endsWith(".ass") || subLower.endsWith(".ssa") -> androidx.media3.common.MimeTypes.TEXT_SSA
+                else -> androidx.media3.common.MimeTypes.APPLICATION_SUBRIP
+            }
             val newItems = s.playlist.uris.mapIndexed { i, u ->
                 if (i == currentIdx) {
                     MediaItem.Builder()
                         .setUri(u)
                         .setSubtitleConfigurations(listOf(
                             MediaItem.SubtitleConfiguration.Builder(uri)
-                                .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP)
+                                .setMimeType(mimeType)
                                 .setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT)
                                 .build()
                         )).build()
@@ -127,8 +140,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             onReachEndThreshold = { s.seen.markCurrentVideoAsSeen(s.playlist) },
             onPipPlay = { if (::player.isInitialized) { if (player.playbackState == androidx.media3.common.Player.STATE_IDLE || player.playerError != null) player.prepare(); player.play(); s.pip.updatePipParams(player, ui.playerView) } },
             onPipPause = { if (::player.isInitialized) { player.pause(); s.pip.updatePipParams(player, ui.playerView) } },
-            onPipPrev = { if (::player.isInitialized) { s.playlist.previousVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
-            onPipNext = { if (::player.isInitialized) { s.seen.markCurrentVideoAsSeen(s.playlist); s.playlist.nextVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
+            onPipPrev = { if (::player.isInitialized) { player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L)); s.pip.updatePipParams(player, ui.playerView) } },
+            onPipNext = { if (::player.isInitialized) { val dur = if (player.duration > 0) player.duration else Long.MAX_VALUE; player.seekTo((player.currentPosition + 10_000L).coerceAtMost(dur)); s.pip.updatePipParams(player, ui.playerView) } },
             onPipDismiss = { if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.pause() }; finish() }
         )
 
@@ -225,6 +238,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onEnded() {
         if (!::player.isInitialized) return
         s.seen.markCurrentVideoAsSeen(s.playlist); ui.playPauseBtn.text = "▶"
+        if (sleepTimerAtEndOfVideo) {
+            sleepTimerAtEndOfVideo = false
+            player.pause()
+            s.resume.clearPosition(s.playlist)
+            Toast.makeText(this, "Sleep timer: stopped at end of video", Toast.LENGTH_LONG).show()
+            return
+        }
         when (s.playlist.repeatMode) {
             PlayerPlaylistController.REPEAT_ALL -> s.playlist.nextVideo(player)
             PlayerPlaylistController.REPEAT_ONE -> { player.seekTo(0); player.prepare(); player.play() }
@@ -316,10 +336,37 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         settingsPrefs.edit().putBoolean("sw_decoder", preferSoftwareDecoder).apply()
         s.quickButtons.updateDynamicLabels()
         s.hud.showQuickFeedback(if (preferSoftwareDecoder) "Decoder: SW" else "Decoder: HW")
-        if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.release() }
+        var currentPos = 0L
+        var shouldPlay = true
+        if (::player.isInitialized) {
+            currentPos = player.currentPosition
+            shouldPlay = player.playWhenReady
+            s.resume.savePosition(player, s.playlist)
+            player.release()
+        }
+        s.resume.resetLastCheckedIndex()
         initPlayer()
+        if (::player.isInitialized) {
+            player.volume = if (isMuted) 0f else 1f
+            if (currentPos > 0L) {
+                player.seekTo(s.playlist.index, currentPos)
+            }
+            player.playWhenReady = shouldPlay
+        }
     }
-    override fun onTimerClicked() = s.dialogs?.showSleepTimerDialog { m -> handler.removeCallbacks(sleepTimerRunnable); if (m > 0) { handler.postDelayed(sleepTimerRunnable, m * 60_000L); s.hud.showQuickFeedback("Sleep timer: $m mins") } } ?: Unit
+    override fun onTimerClicked() = s.dialogs?.showSleepTimerDialog { m ->
+        handler.removeCallbacks(sleepTimerRunnable)
+        sleepTimerAtEndOfVideo = false
+        if (m == -1) {
+            sleepTimerAtEndOfVideo = true
+            s.hud.showQuickFeedback("Sleep timer: at end of video")
+        } else if (m > 0) {
+            handler.postDelayed(sleepTimerRunnable, m * 60_000L)
+            s.hud.showQuickFeedback("Sleep timer: $m mins")
+        } else {
+            s.hud.showQuickFeedback("Sleep timer: off")
+        }
+    } ?: Unit
     private val sleepTimerRunnable = Runnable { if (::player.isInitialized) { player.pause(); Toast.makeText(this, "Sleep timer: stopped", Toast.LENGTH_LONG).show() } }
     override fun onVideoDeletedSuccess() {
         if (!::player.isInitialized) return
@@ -330,8 +377,15 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             VideoIdentity.getAllKeysForVideo("pos", curUri, curName, curSize).forEach { rEd.remove(it) }
             VideoIdentity.getAllKeysForVideo("recent_time", curUri, curName, curSize).forEach { rEd.remove(it) }
             rEd.remove("recent_meta_$curUri")
+            val parsedUri = android.net.Uri.parse(curUri)
+            runCatching {
+                if (DocumentsContract.isDocumentUri(this, parsedUri)) {
+                    DocumentsContract.deleteDocument(contentResolver, parsedUri)
+                } else {
+                    contentResolver.delete(parsedUri, null, null)
+                }
+            }
             sEd.apply(); rEd.apply(); AppBackupManager.backupToStorageAsync(this)
-            runCatching { contentResolver.delete(android.net.Uri.parse(curUri), null, null) }
         }
         val res = s.playlist.removeCurrent()
         if (res.isEmpty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(res.removedIndex); player.seekTo(res.nextIndex, 0L); player.play(); onPlaylistIndexChanged() }
