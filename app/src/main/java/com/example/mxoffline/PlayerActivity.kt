@@ -329,6 +329,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             VideoIdentity.getAllKeysForVideo("seen", curUri, curName, curSize).forEach { sEd.remove(it) }
             VideoIdentity.getAllKeysForVideo("pos", curUri, curName, curSize).forEach { rEd.remove(it) }
             VideoIdentity.getAllKeysForVideo("recent_time", curUri, curName, curSize).forEach { rEd.remove(it) }
+            rEd.remove("recent_meta_$curUri")
             sEd.apply(); rEd.apply(); AppBackupManager.backupToStorageAsync(this)
             runCatching { contentResolver.delete(android.net.Uri.parse(curUri), null, null) }
         }

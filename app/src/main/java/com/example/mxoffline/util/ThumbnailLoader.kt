@@ -33,6 +33,7 @@ object ThumbnailLoader {
 
     fun load(context: Context, uri: Uri, id: Long, imageView: ImageView) {
         val key = uri.toString()
+        imageView.tag = key
         val cached = cache.get(key)
         if (cached != null) {
             imageView.setImageBitmap(cached)
@@ -40,7 +41,6 @@ object ThumbnailLoader {
         }
 
         imageView.setImageDrawable(null)
-        imageView.tag = key
 
         executor.execute {
             var bitmap: Bitmap? = null

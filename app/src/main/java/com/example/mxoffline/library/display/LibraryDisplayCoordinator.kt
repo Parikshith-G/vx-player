@@ -47,7 +47,29 @@ class LibraryDisplayCoordinator(
     }
 
     fun getRecentVideos(allVideos: List<VideoItem>): List<VideoItem> {
-        return allVideos.filter {
+        val existingUris = allVideos.map { it.uri.toString() }.toHashSet()
+        val externalItems = mutableListOf<VideoItem>()
+        for ((key, value) in resumePrefs.all) {
+            if (key.startsWith("recent_meta_") && value is String) {
+                val uriStr = key.removePrefix("recent_meta_")
+                if (!existingUris.contains(uriStr)) {
+                    val parts = value.split("|")
+                    val name = parts.getOrNull(0)?.ifBlank { null } ?: "Video"
+                    val size = parts.getOrNull(1)?.toLongOrNull() ?: 0L
+                    runCatching {
+                        externalItems.add(
+                            VideoItem(
+                                name = name,
+                                uri = android.net.Uri.parse(uriStr),
+                                sizeBytes = size
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        val combined = if (externalItems.isEmpty()) allVideos else allVideos + externalItems
+        return combined.filter {
             getRecentWatchTimestamp(it) > 0L || getSavedResumePosition(it) > 3000L
         }.sortedByDescending {
             val t = getRecentWatchTimestamp(it)

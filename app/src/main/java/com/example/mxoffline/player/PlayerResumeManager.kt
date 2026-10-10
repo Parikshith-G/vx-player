@@ -61,6 +61,9 @@ class PlayerResumeManager(
         val timeKeys = VideoIdentity.getAllKeysForVideo("recent_time", uri, name, size)
         val now = System.currentTimeMillis()
         for (k in timeKeys) editor.putLong(k, now)
+        if (name.isNotBlank() || size > 0L) {
+            editor.putString("recent_meta_$uri", "$name|$size")
+        }
         editor.apply()
     }
 
@@ -72,6 +75,9 @@ class PlayerResumeManager(
         val timeKeys = VideoIdentity.getAllKeysForVideo("recent_time", uri, name, size)
         val now = System.currentTimeMillis()
         for (k in timeKeys) editor.putLong(k, now)
+        if (name.isNotBlank() || size > 0L) {
+            editor.putString("recent_meta_$uri", "$name|$size")
+        }
 
         if (player.duration > 0) {
             val pos = player.currentPosition
