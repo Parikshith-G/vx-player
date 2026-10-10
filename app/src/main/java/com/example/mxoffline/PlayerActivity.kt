@@ -140,8 +140,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             onReachEndThreshold = { s.seen.markCurrentVideoAsSeen(s.playlist) },
             onPipPlay = { if (::player.isInitialized) { if (player.playbackState == androidx.media3.common.Player.STATE_IDLE || player.playerError != null) player.prepare(); player.play(); s.pip.updatePipParams(player, ui.playerView) } },
             onPipPause = { if (::player.isInitialized) { player.pause(); s.pip.updatePipParams(player, ui.playerView) } },
-            onPipPrev = { if (::player.isInitialized) { player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L)); s.pip.updatePipParams(player, ui.playerView) } },
-            onPipNext = { if (::player.isInitialized) { val dur = if (player.duration > 0) player.duration else Long.MAX_VALUE; player.seekTo((player.currentPosition + 10_000L).coerceAtMost(dur)); s.pip.updatePipParams(player, ui.playerView) } },
+            onPipPrev = { if (::player.isInitialized) { s.playlist.previousVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
+            onPipNext = { if (::player.isInitialized) { s.seen.markCurrentVideoAsSeen(s.playlist); s.playlist.nextVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
             onPipDismiss = { if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.pause() }; finish() }
         )
 
