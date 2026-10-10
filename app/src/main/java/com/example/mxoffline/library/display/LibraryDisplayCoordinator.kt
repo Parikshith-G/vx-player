@@ -157,7 +157,14 @@ class LibraryDisplayCoordinator(
 
     fun buildSeenTab(allVideos: List<VideoItem>, searchQuery: String, sortMode: Int): DisplayResult {
         val seen = getSeenVideos(allVideos).filter { searchQuery.isBlank() || it.name.contains(searchQuery, true) }
-        val sorted = LibrarySortManager.sortVideos(seen, sortMode)
+        val sorted = if (sortMode == 0) {
+            seen.sortedWith(
+                compareByDescending<VideoItem> { getSeenTimestamp(it) }
+                    .thenBy(com.example.mxoffline.util.NaturalOrderComparator) { it.name }
+            )
+        } else {
+            LibrarySortManager.sortVideos(seen, sortMode)
+        }
         val list = mutableListOf<LibraryListItem>()
         if (sorted.isNotEmpty()) {
             list.add(
