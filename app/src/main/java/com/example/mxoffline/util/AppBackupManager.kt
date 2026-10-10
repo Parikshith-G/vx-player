@@ -34,35 +34,7 @@ object AppBackupManager {
         executor.execute {
             var success = false
             runCatching {
-                val existingJson = BackupStorageHelper.readExistingBackupFromStorage(appContext)
-                val (extraSeen, extraResume) = if (!existingJson.isNullOrBlank()) {
-                    BackupSerializer.extractHistoryMaps(existingJson)
-                } else {
-                    Pair(emptyMap(), emptyMap())
-                }
-
-                // If current prefs lack items from disk, also apply them into SharedPreferences
-                if (extraSeen.isNotEmpty()) {
-                    val seenPrefs = appContext.getSharedPreferences("player_seen", Context.MODE_PRIVATE)
-                    val editor = seenPrefs.edit()
-                    var changed = false
-                    for ((k, v) in extraSeen) {
-                        if (!seenPrefs.contains(k)) { editor.putLong(k, v); changed = true }
-                    }
-                    if (changed) editor.apply()
-                }
-
-                if (extraResume.isNotEmpty()) {
-                    val resumePrefs = appContext.getSharedPreferences("player_resume", Context.MODE_PRIVATE)
-                    val editor = resumePrefs.edit()
-                    var changed = false
-                    for ((k, v) in extraResume) {
-                        if (!resumePrefs.contains(k)) { editor.putLong(k, v); changed = true }
-                    }
-                    if (changed) editor.apply()
-                }
-
-                val json = BackupSerializer.createBackupJson(appContext, extraSeen, extraResume)
+                val json = BackupSerializer.createBackupJson(appContext)
                 val pubSuccess = BackupStorageHelper.writeToPublicStorage(json)
                 val msSuccess = BackupStorageHelper.writeToMediaStore(appContext, json)
                 success = pubSuccess || msSuccess

@@ -135,8 +135,8 @@ object LibraryUiBuilder {
         }
 
         header.addView(iconBtn("⌕") { callback.onSearchClicked() }, LinearLayout.LayoutParams(dp(42), dp(42)))
-        header.addView(iconBtn("🔀") { callback.onSortClicked() }, LinearLayout.LayoutParams(dp(42), dp(42)))
-        header.addView(iconBtn("📁") { callback.onFolderPickerClicked() }, LinearLayout.LayoutParams(dp(42), dp(42)))
+        header.addView(iconBtn("⇅") { callback.onSortClicked() }, LinearLayout.LayoutParams(dp(42), dp(42)))
+        header.addView(iconBtn("⊞") { callback.onFolderPickerClicked() }, LinearLayout.LayoutParams(dp(42), dp(42)))
         header.addView(iconBtn("＋") { callback.onFilePickerClicked() }, LinearLayout.LayoutParams(dp(42), dp(42)))
         header.addView(iconBtn("⋮") { callback.onMoreMenuClicked() }, LinearLayout.LayoutParams(dp(42), dp(42)))
         root.addView(header)

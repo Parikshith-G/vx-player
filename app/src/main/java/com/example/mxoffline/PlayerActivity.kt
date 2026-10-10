@@ -37,6 +37,7 @@ import com.example.mxoffline.player.screen.PlayerScreenController
 import com.example.mxoffline.player.ui.PlayerUiBuilder
 import com.example.mxoffline.player.ui.PlayerUiViews
 import com.example.mxoffline.util.AppBackupManager
+import com.example.mxoffline.util.VideoIdentity
 
 class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickButtonsManager.Callbacks, PlayerMenuHelper.Callback, PlayerEventListener.Callbacks {
 
@@ -139,7 +140,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         if (s.playlist.uris.isNotEmpty()) {
             p.setMediaItems(s.playlist.uris.map { MediaItem.fromUri(it) }, s.playlist.index, 0)
             p.prepare(); p.playbackParameters = PlaybackParameters(currentPlaybackSpeed, 1.0f); p.playWhenReady = true
-            s.seen.markCurrentVideoAsSeen(s.playlist)
         }
         ui.titleView.text = s.playlist.getCurrentName()
         s.screen.applyOrientation(this, p, null, false); s.screen.applyAspectRatio(ui.playerView)
@@ -165,7 +165,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         }
         ui.seekFwd5Btn.setOnClickListener { seekBy(5_000); s.hud.showQuickFeedback("5s ⟳") }
         s.timeline.setupHoldToContinuousSeek(ui.seekFwd5Btn, true, { player }, { s.controlsLock.scheduleHideControls() })
-        ui.skipOpBtn.setOnClickListener { skipForward90s() }
+        ui.skipOpBtn.setOnClickListener { skipForward80s() }
         ui.pipBtn.setOnClickListener { onEnterPip() }
         ui.restartBtn.setOnClickListener { player.seekTo(0); s.resume.clearPosition(s.playlist) }
         val toggleTime: (View) -> Unit = { s.timeline.toggleRemainingTime() }
@@ -174,7 +174,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     private fun onPlaylistIndexChanged() {
         ui.titleView.text = s.playlist.getCurrentName()
-        s.seen.markCurrentVideoAsSeen(s.playlist)
         s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist)
         if (::player.isInitialized) s.pip.updatePipParams(player, ui.playerView)
     }
@@ -273,11 +272,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     private val sleepTimerRunnable = Runnable { if (::player.isInitialized) { player.pause(); Toast.makeText(this, "Sleep timer: stopped", Toast.LENGTH_LONG).show() } }
     override fun onVideoDeletedSuccess() {
         if (!::player.isInitialized) return
+        val curUri = s.playlist.getCurrentUri(); val curName = s.playlist.getCurrentName(); val curSize = s.playlist.getCurrentSize()
+        if (curUri != null) {
+            val sEd = seenPrefs.edit(); val rEd = resumePrefs.edit()
+            VideoIdentity.getAllKeysForVideo("seen", curUri, curName, curSize).forEach { sEd.remove(it) }; VideoIdentity.getAllKeysForVideo("pos", curUri, curName, curSize).forEach { rEd.remove(it) }
+            sEd.apply(); rEd.apply(); AppBackupManager.backupToStorageAsync(this)
+        }
         val (newIdx, empty) = s.playlist.removeCurrent()
         if (empty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(newIdx); player.seekTo(newIdx, 0L); player.play(); onPlaylistIndexChanged() }
     }
-    override fun onSkip90Clicked() = skipForward90s()
-    private fun skipForward90s() { seekBy(90_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
+    override fun onSkip80Clicked() = skipForward80s()
+    private fun skipForward80s() { seekBy(80_000L); s.hud.showQuickFeedback("⏭ +80s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
 
     override fun onButtonInteracted() = s.controlsLock.scheduleHideControls()
     override fun getCurrentUri() = s.playlist.getCurrentUri(); override fun getCurrentName() = s.playlist.getCurrentName()
