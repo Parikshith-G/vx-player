@@ -42,7 +42,7 @@ class LibraryBatchActionManager(
             .setPositiveButton("Clear") { _, _ ->
                 val editor = resumePrefs.edit()
                 for (key in resumePrefs.all.keys) {
-                    if (key.startsWith("pos_") || key.startsWith("recent_time_")) {
+                    if (key.startsWith("pos_") || key.startsWith("recent_time_") || key.startsWith("recent_meta_")) {
                         editor.remove(key)
                     }
                 }
@@ -163,6 +163,8 @@ class LibraryBatchActionManager(
                     deletedCount++
                     for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)) seenEditor.remove(k)
                     for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video)) resumeEditor.remove(k)
+                    for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("recent_time", video)) resumeEditor.remove(k)
+                    resumeEditor.remove("recent_meta_${video.uri}")
                 }
             }
             seenEditor.apply()
@@ -184,6 +186,7 @@ class LibraryBatchActionManager(
             for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)) seenEditor.remove(k)
             for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video)) resumeEditor.remove(k)
             for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("recent_time", video)) resumeEditor.remove(k)
+            resumeEditor.remove("recent_meta_${video.uri}")
             runCatching { activity.contentResolver.delete(video.uri, null, null) }
         }
         seenEditor.apply()
