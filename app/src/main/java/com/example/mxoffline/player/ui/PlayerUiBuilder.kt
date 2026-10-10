@@ -219,7 +219,7 @@ object PlayerUiBuilder {
             setPadding(dp(4), 0, 0, dp(4))
         }
         val skipOpBtn = TextView(activity).apply {
-            text = "+80s OP"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD
+            text = "+90s OP"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD
             setTextColor(0xffffc400.toInt()); background = UiUtils.rounded(0xdd1e222e.toInt(), 14, activity)
             setPadding(dp(12), dp(4), dp(12), dp(4)); gravity = Gravity.CENTER; includeFontPadding = false
         }
