@@ -53,7 +53,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     private var isMuted = false; private var preferSoftwareDecoder = false
     private var backgroundPlayEnabled = false; private var subtitleFontSizeSp = 18f; private var currentPlaybackSpeed = 1.0f
-    private var lastBtMediaTapTime = 0L
+    private var mediaSessionManager: com.example.mxoffline.player.playback.PlayerMediaSessionManager? = null
 
     private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { if (it.resultCode == RESULT_OK) onVideoDeletedSuccess() else Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show() }
 
@@ -135,10 +135,26 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
                 setMediaCodecSelector { mime, sec, tun -> androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(mime, sec, tun).sortedByDescending { it.name.startsWith("c2.android", true) || it.name.startsWith("omx.google", true) } }
             }
         }
-        val p = ExoPlayer.Builder(this, renderersFactory).build()
+        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+            .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+            .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+        val p = ExoPlayer.Builder(this, renderersFactory)
+            .setAudioAttributes(audioAttributes, true)
+            .build()
         player = p; ui.playerView.player = p
         s.initPlayerBoundControllers(this, window, handler, p, audioManager, this)
         p.addListener(PlayerEventListener(p, this))
+        mediaSessionManager?.release()
+        mediaSessionManager = com.example.mxoffline.player.playback.PlayerMediaSessionManager(this, object : com.example.mxoffline.player.playback.PlayerMediaSessionManager.Callbacks {
+            override fun onTogglePlay() = togglePlay()
+            override fun onSkipNext() { if (::player.isInitialized) { s.seen.markCurrentVideoAsSeen(s.playlist); s.playlist.nextVideo(player) } }
+            override fun onSkipPrev() { if (::player.isInitialized) s.playlist.previousVideo(player) }
+            override fun isBtDoubleTapEnabled() = this@PlayerActivity.isBtDoubleTapEnabled()
+            override fun showHud(message: String) = s.hud.showQuickFeedback(message)
+            override fun isPlaying() = ::player.isInitialized && player.isPlaying
+            override fun getCurrentPosition() = if (::player.isInitialized) player.currentPosition else 0L
+        }).apply { init() }
         if (s.playlist.uris.isNotEmpty()) {
             p.setMediaItems(s.playlist.uris.map { MediaItem.fromUri(it) }, s.playlist.index, 0)
             p.prepare(); p.playbackParameters = PlaybackParameters(currentPlaybackSpeed, 1.0f); p.playWhenReady = true
@@ -180,7 +196,13 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         if (::player.isInitialized) s.pip.updatePipParams(player, ui.playerView)
     }
 
-    override fun onReady() { if (::player.isInitialized) { s.audioBoost.initAudioEffects(player); s.resume.checkAndApplyResume(player, s.playlist) } }
+    override fun onReady() {
+        if (::player.isInitialized) {
+            s.audioBoost.initAudioEffects(player)
+            s.resume.checkAndApplyResume(player, s.playlist)
+            mediaSessionManager?.updatePlaybackState(player.isPlaying, player.currentPosition)
+        }
+    }
     override fun onEnded() {
         if (!::player.isInitialized) return
         s.seen.markCurrentVideoAsSeen(s.playlist); ui.playPauseBtn.text = "▶"
@@ -193,7 +215,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onPlayingChanged(isPlaying: Boolean) {
         ui.playPauseBtn.text = if (isPlaying) "Ⅱ" else "▶"
         if (isPlaying) s.controlsLock.scheduleHideControls() else s.controlsLock.cancelHideControls()
-        if (::player.isInitialized) s.pip.updatePipParams(player, ui.playerView)
+        if (::player.isInitialized) {
+            s.pip.updatePipParams(player, ui.playerView)
+            mediaSessionManager?.updatePlaybackState(isPlaying, player.currentPosition)
+        }
     }
     override fun onError(err: androidx.media3.common.PlaybackException) {
         ui.playPauseBtn.text = "▶"; s.hud.showQuickFeedback("Playback error"); Toast.makeText(this, "Cannot play: ${s.playlist.getCurrentName()}", Toast.LENGTH_LONG).show()
@@ -252,6 +277,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null); s.pip.onDestroyClean(); s.controlsLock.release()
+        mediaSessionManager?.release(); mediaSessionManager = null
         if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.pause(); s.audioBoost.release(); ui.playerView.player = null; player.release() }
         super.onDestroy()
     }
@@ -291,29 +317,25 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         settingsPrefs.edit().putBoolean("bt_double_tap_pause", next).apply()
         s.quickButtons.updateDynamicLabels()
         s.hud.showQuickFeedback(if (next) "BT Double Tap: ON" else "BT Double Tap: OFF")
+        if (::player.isInitialized) mediaSessionManager?.updatePlaybackState(player.isPlaying, player.currentPosition)
         return next
     }
     override fun isBtDoubleTapEnabled(): Boolean = com.example.mxoffline.util.PreferenceHelper.safeGetBoolean(settingsPrefs, "bt_double_tap_pause", false)
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && isBtDoubleTapEnabled()) {
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    val now = android.os.SystemClock.uptimeMillis()
-                    if (now - lastBtMediaTapTime <= 450) {
-                        lastBtMediaTapTime = 0L; togglePlay()
-                        s.hud.showQuickFeedback(if (::player.isInitialized && player.isPlaying) "Ⅱ Pause (BT 2×)" else "▶ Play (BT 2×)")
-                        return true
-                    } else { lastBtMediaTapTime = now }
-                }
-                KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                    togglePlay()
-                    s.hud.showQuickFeedback(if (::player.isInitialized && player.isPlaying) "Ⅱ Pause (BT 2×)" else "▶ Play (BT 2×)")
-                    return true
-                }
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            if (mediaSessionManager?.handleMediaKeyEvent(event.keyCode) == true) {
+                return true
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (mediaSessionManager?.handleMediaKeyEvent(keyCode) == true) {
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onButtonInteracted() = s.controlsLock.scheduleHideControls()
