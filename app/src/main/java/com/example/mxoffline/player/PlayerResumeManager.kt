@@ -24,6 +24,10 @@ class PlayerResumeManager(
     private var lastCheckedIndex = -1
     private val hideBannerRunnable = Runnable { resumeBanner.visibility = View.GONE }
 
+    fun resetLastCheckedIndex() {
+        lastCheckedIndex = -1
+    }
+
     fun getSavedPosition(uri: String, name: String = "", size: Long = 0L): Long {
         val keys = VideoIdentity.getAllKeysForVideo("pos", uri, name, size)
         var maxPos = 0L

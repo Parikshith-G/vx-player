@@ -127,8 +127,8 @@ class PlayerDialogHelper(
     }
 
     fun showSleepTimerDialog(onTimerSet: (Int) -> Unit) {
-        val options = arrayOf("Turn Off Timer", "10 minutes", "15 minutes", "30 minutes", "45 minutes", "60 minutes")
-        val minutes = arrayOf(0, 10, 15, 30, 45, 60)
+        val options = arrayOf("Turn Off Timer", "10 minutes", "15 minutes", "30 minutes", "45 minutes", "60 minutes", "At end of video")
+        val minutes = arrayOf(0, 10, 15, 30, 45, 60, -1)
 
         AlertDialog.Builder(context)
             .setTitle("Sleep Timer")

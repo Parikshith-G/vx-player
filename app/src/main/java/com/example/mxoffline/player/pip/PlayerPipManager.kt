@@ -106,7 +106,7 @@ class PlayerPipManager(
             activity, 1, Intent(ACTION_PIP_PREV).apply { `package` = activity.packageName },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        actions.add(RemoteAction(Icon.createWithResource(activity, android.R.drawable.ic_media_previous), "Previous", "Previous video", prevIntent))
+        actions.add(RemoteAction(Icon.createWithResource(activity, android.R.drawable.ic_media_previous), "Rewind 10s", "Rewind 10 seconds", prevIntent))
 
         val playPauseIntent = PendingIntent.getBroadcast(
             activity, if (isPlaying) 2 else 3,
@@ -120,7 +120,7 @@ class PlayerPipManager(
             activity, 4, Intent(ACTION_PIP_NEXT).apply { `package` = activity.packageName },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        actions.add(RemoteAction(Icon.createWithResource(activity, android.R.drawable.ic_media_next), "Next", "Next video", nextIntent))
+        actions.add(RemoteAction(Icon.createWithResource(activity, android.R.drawable.ic_media_next), "Forward 10s", "Forward 10 seconds", nextIntent))
 
         builder.setActions(actions)
 

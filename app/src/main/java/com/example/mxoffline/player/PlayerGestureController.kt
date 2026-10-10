@@ -250,7 +250,7 @@ class PlayerGestureController(
                 callback.onSingleTap()
             }
             pendingSingleTap = single
-            handler.postDelayed(single, 220)
+            handler.postDelayed(single, 320)
         }
     }
 }

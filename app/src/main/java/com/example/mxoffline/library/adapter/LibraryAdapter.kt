@@ -28,7 +28,8 @@ class LibraryAdapter(
     private val onFolderClick: (FolderItem) -> Unit,
     private val onSafClick: (SafEntry) -> Unit,
     private val resumePrefs: SharedPreferences,
-    private val onVideoLongClick: ((VideoItem, List<VideoItem>) -> Unit)? = null
+    private val onVideoLongClick: ((VideoItem, List<VideoItem>) -> Unit)? = null,
+    private val getSafTreeUri: (() -> android.net.Uri?)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -235,6 +236,13 @@ class LibraryAdapter(
                     holder.views.folderIcon.visibility = View.GONE
                     holder.views.thumb.visibility = View.VISIBLE
                     holder.views.subtitle.text = FileSizeFormatter.formatSize(entry.sizeBytes)
+                    val tree = getSafTreeUri?.invoke()
+                    if (tree != null) {
+                        val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, entry.documentId)
+                        ThumbnailLoader.load(ctx, docUri, 0L, holder.views.thumb)
+                    } else {
+                        holder.views.thumb.setImageDrawable(null)
+                    }
                 }
 
                 holder.itemView.setOnClickListener { onSafClick(entry) }
