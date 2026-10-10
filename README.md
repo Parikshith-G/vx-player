@@ -32,7 +32,7 @@ A powerful, native Android video player focused entirely on local and offline pl
     - HW / SW Decoder (`HW / SW`)
     - Sleep Timer (`⏱ Timer`)
   - **Fully Customizable**: Tap the hamburger menu (`☰`) -> "Customize Quick Buttons" to select which circular buttons appear.
-- **MX Player Bottom Action Controls**:
+- **VX Player Bottom Action Controls**:
   - Exact sequence: `[🔒 Lock]` `[⟲ 5s Seek Back]` `[⏮ Prev Video]` `[▶/Ⅱ Play/Pause]` `[⏭ Next Video]` `[5s ⟳ Seek Forward]` `[⧉ PiP]`.
 - **Horizontal Swipe Seek**: Real-time seek scrub HUD displaying target timestamp, `[±offset]`, and mini scrubber. Smooth seek upon finger release.
 - **Vertical Left Swipe**: Real-time smooth brightness control (0% to 100%) with visual HUD indicator.
