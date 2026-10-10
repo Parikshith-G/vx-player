@@ -42,7 +42,7 @@ class LibraryBatchActionManager(
             .setPositiveButton("Clear") { _, _ ->
                 val editor = resumePrefs.edit()
                 for (key in resumePrefs.all.keys) {
-                    if (key.startsWith("pos_")) {
+                    if (key.startsWith("pos_") || key.startsWith("recent_time_")) {
                         editor.remove(key)
                     }
                 }
@@ -130,6 +130,22 @@ class LibraryBatchActionManager(
                             android.media.MediaScannerConnection.scanFile(activity, arrayOf(f.absolutePath), null, null)
                         }
                     }
+                } else if (video.uri.scheme == "content") {
+                    runCatching {
+                        activity.contentResolver.query(video.uri, arrayOf(MediaStore.Video.Media.DATA), null, null, null)?.use { c ->
+                            val col = c.getColumnIndex(MediaStore.Video.Media.DATA)
+                            if (c.moveToFirst() && col >= 0) {
+                                val path = c.getString(col)
+                                if (!path.isNullOrBlank()) {
+                                    val f = File(path)
+                                    if (f.exists() && f.delete()) {
+                                        success = true
+                                        android.media.MediaScannerConnection.scanFile(activity, arrayOf(f.absolutePath), null, null)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else if (DocumentsContract.isDocumentUri(activity, video.uri)) {
                     runCatching {
                         success = DocumentsContract.deleteDocument(activity.contentResolver, video.uri)
@@ -167,6 +183,8 @@ class LibraryBatchActionManager(
         for (video in videos) {
             for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)) seenEditor.remove(k)
             for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("pos", video)) resumeEditor.remove(k)
+            for (k in com.example.mxoffline.util.VideoIdentity.getAllKeys("recent_time", video)) resumeEditor.remove(k)
+            runCatching { activity.contentResolver.delete(video.uri, null, null) }
         }
         seenEditor.apply()
         resumeEditor.apply()

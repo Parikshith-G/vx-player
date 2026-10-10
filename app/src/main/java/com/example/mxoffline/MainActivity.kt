@@ -67,7 +67,20 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     }
 
     private val batchDeleteLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.IntentSenderRequest> = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
-        if (res.resultCode == RESULT_OK) actionManager.onBatchDeleteSuccess(actionManager.pendingBatchDeleteVideos) else actionManager.onBatchDeleteCancelled()
+        if (res.resultCode == RESULT_OK) {
+            val deleted = actionManager.pendingBatchDeleteVideos
+            actionManager.onBatchDeleteSuccess(deleted)
+            val deletedUris = deleted.map { it.uri.toString() }.toSet()
+            val deletedIds = deleted.map { it.id }.toSet()
+            allDeviceVideos = allDeviceVideos.filter { it.uri.toString() !in deletedUris && it.id !in deletedIds }
+            deviceFolders = MediaScanner.groupIntoFolders(allDeviceVideos)
+            if (currentTab == TAB_FOLDER_VIDEOS) {
+                currentFolderVideos = currentFolderVideos.filter { it.uri.toString() !in deletedUris && it.id !in deletedIds }
+            }
+            refreshCurrentDisplay()
+        } else {
+            actionManager.onBatchDeleteCancelled()
+        }
     }
 
     private val permissionLauncher: androidx.activity.result.ActivityResultLauncher<String> = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->

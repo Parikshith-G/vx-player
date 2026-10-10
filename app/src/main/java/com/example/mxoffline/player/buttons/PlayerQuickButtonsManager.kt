@@ -216,6 +216,19 @@ class PlayerQuickButtonsManager(
                 val f = File(currentUri.path ?: "")
                 if (f.exists()) successfullyDeleted = f.delete()
             }
+        } else if (currentUri.scheme == "content") {
+            runCatching {
+                activity.contentResolver.query(currentUri, arrayOf(MediaStore.Video.Media.DATA), null, null, null)?.use { c ->
+                    val col = c.getColumnIndex(MediaStore.Video.Media.DATA)
+                    if (c.moveToFirst() && col >= 0) {
+                        val path = c.getString(col)
+                        if (!path.isNullOrBlank()) {
+                            val f = File(path)
+                            if (f.exists() && f.delete()) successfullyDeleted = true
+                        }
+                    }
+                }
+            }
         }
 
         if (!successfullyDeleted && DocumentsContract.isDocumentUri(activity, currentUri)) {

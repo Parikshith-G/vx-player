@@ -53,19 +53,34 @@ class PlayerResumeManager(
         }
     }
 
+    fun recordWatchTime(uris: List<String>, index: Int, names: List<String> = emptyList(), sizes: List<Long> = emptyList()) {
+        val uri = uris.getOrNull(index) ?: return
+        val name = names.getOrNull(index) ?: ""
+        val size = sizes.getOrNull(index) ?: 0L
+        val editor = prefs.edit()
+        val timeKeys = VideoIdentity.getAllKeysForVideo("recent_time", uri, name, size)
+        val now = System.currentTimeMillis()
+        for (k in timeKeys) editor.putLong(k, now)
+        editor.apply()
+    }
+
     fun savePosition(player: ExoPlayer, uris: List<String>, index: Int, names: List<String> = emptyList(), sizes: List<Long> = emptyList()) {
         val uri = uris.getOrNull(index) ?: return
         val name = names.getOrNull(index) ?: ""
         val size = sizes.getOrNull(index) ?: 0L
+        val editor = prefs.edit()
+        val timeKeys = VideoIdentity.getAllKeysForVideo("recent_time", uri, name, size)
+        val now = System.currentTimeMillis()
+        for (k in timeKeys) editor.putLong(k, now)
+
         if (player.duration > 0) {
             val pos = player.currentPosition
             if (pos > 3000L && pos < player.duration - 3000L) {
-                val editor = prefs.edit()
                 val keys = VideoIdentity.getAllKeysForVideo("pos", uri, name, size)
                 for (k in keys) editor.putLong(k, pos)
-                editor.apply()
             }
         }
+        editor.apply()
     }
 
     fun clearPosition(uris: List<String>, index: Int, names: List<String> = emptyList(), sizes: List<Long> = emptyList()) {
@@ -80,6 +95,7 @@ class PlayerResumeManager(
         resumeBanner.visibility = View.GONE
     }
 
+    fun recordWatchTime(p: com.example.mxoffline.player.playlist.PlayerPlaylistController) = recordWatchTime(p.uris, p.index, p.names, p.sizes)
     fun checkAndApplyResume(player: ExoPlayer, p: com.example.mxoffline.player.playlist.PlayerPlaylistController) = checkAndApplyResume(player, p.uris, p.index, p.names, p.sizes)
     fun savePosition(player: ExoPlayer, p: com.example.mxoffline.player.playlist.PlayerPlaylistController) = savePosition(player, p.uris, p.index, p.names, p.sizes)
     fun clearPosition(p: com.example.mxoffline.player.playlist.PlayerPlaylistController) = clearPosition(p.uris, p.index, p.names, p.sizes)
