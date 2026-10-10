@@ -78,8 +78,12 @@ object MediaScanner {
                     if (dataCol >= 0 && !cursor.isNull(dataCol)) {
                         val path = cursor.getString(dataCol)
                         if (!path.isNullOrBlank()) {
-                            val f = File(path)
-                            if (!f.exists() || f.length() == 0L) continue
+                            val canCheckFile = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                                    (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && android.os.Environment.isExternalStorageManager())
+                            if (canCheckFile) {
+                                val f = File(path)
+                                if (!f.exists() || f.length() == 0L) continue
+                            }
                         }
                     }
                     val id = cursor.getLong(idCol)
