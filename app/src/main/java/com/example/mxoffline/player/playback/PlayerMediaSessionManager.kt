@@ -1,7 +1,7 @@
 /**
  * Role: Android MediaSession manager for Bluetooth earbud and headset media controls.
  * Responsibility: Handles Bluetooth AVRCP media button events (play, pause, next, prev, double-tap).
- * Details: Intercepts single and double-tap gestures, routes next/prev, and keeps system playback state in sync.
+ * Details: Accurately differentiates single-tap from double-tap gestures and honors the BT Double-Tap toggle.
  */
 package com.example.mxoffline.player.playback
 
@@ -10,6 +10,8 @@ import android.content.Intent
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
 
@@ -28,7 +30,15 @@ class PlayerMediaSessionManager(
     }
 
     private var mediaSession: MediaSession? = null
-    private var lastBtTapTime = 0L
+    private var lastSkipTime = 0L
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var tapCount = 0
+
+    private val singleTapRunnable = Runnable {
+        tapCount = 0
+        // Standard single tap: normal play/pause
+        callbacks.onTogglePlay()
+    }
 
     fun init() {
         release()
@@ -46,20 +56,29 @@ class PlayerMediaSessionManager(
                             @Suppress("DEPRECATION")
                             mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
                         }
-                        if (event != null && event.action == KeyEvent.ACTION_DOWN) {
-                            if (handleMediaKeyEvent(event.keyCode)) {
-                                return true
+                        if (event != null) {
+                            if (event.action == KeyEvent.ACTION_DOWN) {
+                                if (handleMediaKeyEvent(event.keyCode)) {
+                                    return true
+                                }
+                            } else if (event.action == KeyEvent.ACTION_UP) {
+                                when (event.keyCode) {
+                                    KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+                                    KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_MEDIA_REWIND,
+                                    KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                                    KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> return true
+                                }
                             }
                         }
                         return super.onMediaButtonEvent(mediaButtonIntent)
                     }
 
                     override fun onPlay() {
-                        callbacks.onTogglePlay()
+                        handlePlayPauseKey()
                     }
 
                     override fun onPause() {
-                        callbacks.onTogglePlay()
+                        handlePlayPauseKey()
                     }
 
                     override fun onSkipToNext() {
@@ -108,31 +127,38 @@ class PlayerMediaSessionManager(
     fun handleSkipNext() {
         val now = SystemClock.uptimeMillis()
         if (callbacks.isBtDoubleTapEnabled()) {
-            if (now - lastBtTapTime > 350) {
-                lastBtTapTime = now
+            if (now - lastSkipTime > 350) {
+                lastSkipTime = now
                 callbacks.onTogglePlay()
                 val isPlaying = callbacks.isPlaying()
                 callbacks.showHud(if (isPlaying) "Ⅱ Pause (BT 2×)" else "▶ Play (BT 2×)")
             }
         } else {
+            // When BT double tap toggle is OFF:
+            // Double tap behaves as standard track skip, NOT play/pause!
             callbacks.onSkipNext()
         }
     }
 
     private fun handlePlayPauseKey() {
-        val now = SystemClock.uptimeMillis()
-        if (callbacks.isBtDoubleTapEnabled()) {
-            // Earbuds sending two rapid play/pause clicks: swallow second click within 500ms
-            if (now - lastBtTapTime <= 500) {
-                lastBtTapTime = 0L
-                callbacks.showHud(if (callbacks.isPlaying()) "▶ Play (BT 2×)" else "Ⅱ Pause (BT 2×)")
-                return
+        tapCount++
+        if (tapCount == 1) {
+            mainHandler.removeCallbacks(singleTapRunnable)
+            mainHandler.postDelayed(singleTapRunnable, 320)
+        } else if (tapCount >= 2) {
+            mainHandler.removeCallbacks(singleTapRunnable)
+            tapCount = 0
+            if (callbacks.isBtDoubleTapEnabled()) {
+                // When BT double tap toggle is ON:
+                // Double tap triggers Play/Pause!
+                callbacks.onTogglePlay()
+                val isPlaying = callbacks.isPlaying()
+                callbacks.showHud(if (isPlaying) "Ⅱ Pause (BT 2×)" else "▶ Play (BT 2×)")
+            } else {
+                // When BT double tap toggle is OFF:
+                // Double tap does NOT pause and play! Skips track instead.
+                callbacks.onSkipNext()
             }
-            lastBtTapTime = now
-            callbacks.onTogglePlay()
-            callbacks.showHud(if (callbacks.isPlaying()) "▶ Play (BT 2×)" else "Ⅱ Pause (BT 2×)")
-        } else {
-            callbacks.onTogglePlay()
         }
     }
 
@@ -159,6 +185,7 @@ class PlayerMediaSessionManager(
 
     fun release() {
         try {
+            mainHandler.removeCallbacksAndMessages(null)
             mediaSession?.isActive = false
             mediaSession?.release()
             mediaSession = null

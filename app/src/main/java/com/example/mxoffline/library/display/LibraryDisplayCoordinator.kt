@@ -36,10 +36,23 @@ class LibraryDisplayCoordinator(
         return maxPos
     }
 
+    fun getRecentWatchTimestamp(video: VideoItem): Long {
+        val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("recent_time", video)
+        var maxTime = 0L
+        for (k in keys) {
+            val t = PreferenceHelper.safeGetLong(resumePrefs, k, 0L)
+            if (t > maxTime) maxTime = t
+        }
+        return maxTime
+    }
+
     fun getRecentVideos(allVideos: List<VideoItem>): List<VideoItem> {
         return allVideos.filter {
-            getSavedResumePosition(it) > 3000L
-        }.sortedByDescending { getSavedResumePosition(it) }
+            getRecentWatchTimestamp(it) > 0L || getSavedResumePosition(it) > 3000L
+        }.sortedByDescending {
+            val t = getRecentWatchTimestamp(it)
+            if (t > 0L) t else getSavedResumePosition(it)
+        }
     }
 
     fun isVideoSeen(video: VideoItem): Boolean {

@@ -162,6 +162,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         ui.titleView.text = s.playlist.getCurrentName()
         s.screen.applyOrientation(this, p, null, false); s.screen.applyAspectRatio(ui.playerView)
         s.quickButtons.renderButtons(); s.seen.updateMarkDoneButtonState(ui.markDoneBtn, s.playlist)
+        s.resume.recordWatchTime(s.playlist)
     }
 
     private fun setupListeners() {
@@ -230,7 +231,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         }
     }
     override fun onMediaItemTransition(currentMediaItemIndex: Int) {
-        if (currentMediaItemIndex in s.playlist.uris.indices) { s.playlist.index = currentMediaItemIndex; onPlaylistIndexChanged() }
+        if (currentMediaItemIndex in s.playlist.uris.indices) {
+            s.playlist.index = currentMediaItemIndex
+            s.resume.recordWatchTime(s.playlist)
+            onPlaylistIndexChanged()
+        }
     }
 
     private val progressTracker = object : Runnable {
@@ -303,8 +308,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         val curUri = s.playlist.getCurrentUri(); val curName = s.playlist.getCurrentName(); val curSize = s.playlist.getCurrentSize()
         if (curUri != null) {
             val sEd = seenPrefs.edit(); val rEd = resumePrefs.edit()
-            VideoIdentity.getAllKeysForVideo("seen", curUri, curName, curSize).forEach { sEd.remove(it) }; VideoIdentity.getAllKeysForVideo("pos", curUri, curName, curSize).forEach { rEd.remove(it) }
+            VideoIdentity.getAllKeysForVideo("seen", curUri, curName, curSize).forEach { sEd.remove(it) }
+            VideoIdentity.getAllKeysForVideo("pos", curUri, curName, curSize).forEach { rEd.remove(it) }
+            VideoIdentity.getAllKeysForVideo("recent_time", curUri, curName, curSize).forEach { rEd.remove(it) }
             sEd.apply(); rEd.apply(); AppBackupManager.backupToStorageAsync(this)
+            runCatching { contentResolver.delete(android.net.Uri.parse(curUri), null, null) }
         }
         val (newIdx, empty) = s.playlist.removeCurrent()
         if (empty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(newIdx); player.seekTo(newIdx, 0L); player.play(); onPlaylistIndexChanged() }
@@ -329,13 +337,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             }
         }
         return super.dispatchKeyEvent(event)
-    }
-
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (mediaSessionManager?.handleMediaKeyEvent(keyCode) == true) {
-            return true
-        }
-        return super.onKeyDown(keyCode, event)
     }
 
     override fun onButtonInteracted() = s.controlsLock.scheduleHideControls()

@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import java.io.File
 import com.example.mxoffline.model.FolderItem
 import com.example.mxoffline.model.SafEntry
 import com.example.mxoffline.model.VideoItem
@@ -39,15 +40,25 @@ object MediaScanner {
             MediaStore.Video.Media.DATE_MODIFIED,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Video.Media.BUCKET_DISPLAY_NAME else MediaStore.Video.Media.DATA,
             MediaStore.Video.Media.WIDTH,
-            MediaStore.Video.Media.HEIGHT
+            MediaStore.Video.Media.HEIGHT,
+            MediaStore.Video.Media.DATA
         )
         val sortOrder = "${MediaStore.Video.Media.DATE_MODIFIED} DESC"
+        val selection = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                "${MediaStore.MediaColumns.IS_TRASHED} = 0 AND ${MediaStore.Video.Media.SIZE} > 0"
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                "${MediaStore.MediaColumns.IS_PENDING} = 0 AND ${MediaStore.Video.Media.SIZE} > 0"
+            }
+            else -> "${MediaStore.Video.Media.SIZE} > 0"
+        }
 
         runCatching {
             contentResolver.query(
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                null,
+                selection,
                 null,
                 sortOrder
             )?.use { cursor ->
@@ -61,8 +72,16 @@ object MediaScanner {
                 )
                 val widthCol = cursor.getColumnIndex(MediaStore.Video.Media.WIDTH)
                 val heightCol = cursor.getColumnIndex(MediaStore.Video.Media.HEIGHT)
+                val dataCol = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
 
                 while (cursor.moveToNext()) {
+                    if (dataCol >= 0 && !cursor.isNull(dataCol)) {
+                        val path = cursor.getString(dataCol)
+                        if (!path.isNullOrBlank()) {
+                            val f = File(path)
+                            if (!f.exists() || f.length() == 0L) continue
+                        }
+                    }
                     val id = cursor.getLong(idCol)
                     val name = cursor.getString(nameCol) ?: "Video"
                     val duration = if (durCol >= 0 && !cursor.isNull(durCol)) cursor.getLong(durCol) else 0L
