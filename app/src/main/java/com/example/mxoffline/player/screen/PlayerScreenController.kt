@@ -96,8 +96,8 @@ class PlayerScreenController(
     fun applyAspectRatio(playerView: PlayerView) {
         when (aspectModeIndex) {
             ASPECT_FIT -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            ASPECT_FILL -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            ASPECT_ZOOM -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            ASPECT_FILL -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            ASPECT_ZOOM -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             else -> playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
     }
@@ -105,8 +105,8 @@ class PlayerScreenController(
     fun cycleAspectRatio(activity: Activity, playerView: PlayerView, hud: PlayerHudController?): String {
         val modes = listOf(
             "Fit" to AspectRatioFrameLayout.RESIZE_MODE_FIT,
-            "Fill" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM,
-            "Zoom" to AspectRatioFrameLayout.RESIZE_MODE_FILL
+            "Fill" to AspectRatioFrameLayout.RESIZE_MODE_FILL,
+            "Zoom" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         )
         aspectModeIndex = (aspectModeIndex + 1) % modes.size
         playerView.resizeMode = modes[aspectModeIndex].second

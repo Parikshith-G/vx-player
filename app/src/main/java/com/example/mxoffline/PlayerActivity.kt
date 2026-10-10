@@ -58,9 +58,27 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { if (it.resultCode == RESULT_OK) onVideoDeletedSuccess() else Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show() }
 
     private val subtitlePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) runCatching {
+        if (uri != null && ::player.isInitialized) runCatching {
             contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            player.setMediaItem(MediaItem.Builder().setUri(s.playlist.getCurrentUri() ?: return@runCatching).setSubtitleConfigurations(listOf(MediaItem.SubtitleConfiguration.Builder(uri).setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP).setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT).build())).build())
+            val currentPos = player.currentPosition
+            val currentPlayWhenReady = player.playWhenReady
+            val currentIdx = s.playlist.index
+            val newItems = s.playlist.uris.mapIndexed { i, u ->
+                if (i == currentIdx) {
+                    MediaItem.Builder()
+                        .setUri(u)
+                        .setSubtitleConfigurations(listOf(
+                            MediaItem.SubtitleConfiguration.Builder(uri)
+                                .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP)
+                                .setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT)
+                                .build()
+                        )).build()
+                } else {
+                    MediaItem.fromUri(u)
+                }
+            }
+            player.setMediaItems(newItems, currentIdx, currentPos)
+            player.playWhenReady = currentPlayWhenReady
             s.hud.showQuickFeedback("External subtitle loaded")
         }.onFailure { Toast.makeText(this, "Failed to load subtitle", Toast.LENGTH_SHORT).show() }
     }
@@ -184,7 +202,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         }
         ui.seekFwd5Btn.setOnClickListener { seekBy(5_000); s.hud.showQuickFeedback("5s ⟳") }
         s.timeline.setupHoldToContinuousSeek(ui.seekFwd5Btn, true, { player }, { s.controlsLock.scheduleHideControls() })
-        ui.skipOpBtn.setOnClickListener { skipForward80s() }
+        ui.skipOpBtn.setOnClickListener { skipForward90s() }
         ui.pipBtn.setOnClickListener { onEnterPip() }
         ui.restartBtn.setOnClickListener { player.seekTo(0); s.resume.clearPosition(s.playlist) }
         val toggleTime: (View) -> Unit = { s.timeline.toggleRemainingTime() }
@@ -314,11 +332,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             sEd.apply(); rEd.apply(); AppBackupManager.backupToStorageAsync(this)
             runCatching { contentResolver.delete(android.net.Uri.parse(curUri), null, null) }
         }
-        val (newIdx, empty) = s.playlist.removeCurrent()
-        if (empty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(newIdx); player.seekTo(newIdx, 0L); player.play(); onPlaylistIndexChanged() }
+        val res = s.playlist.removeCurrent()
+        if (res.isEmpty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(res.removedIndex); player.seekTo(res.nextIndex, 0L); player.play(); onPlaylistIndexChanged() }
     }
-    override fun onSkip80Clicked() = skipForward80s()
-    private fun skipForward80s() { seekBy(80_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
+    override fun onSkip80Clicked() = skipForward90s()
+    private fun skipForward90s() { seekBy(90_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
 
     override fun onToggleBtDoubleTap(): Boolean {
         val next = !isBtDoubleTapEnabled()
