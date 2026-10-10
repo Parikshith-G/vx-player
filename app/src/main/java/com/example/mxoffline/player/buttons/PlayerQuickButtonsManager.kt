@@ -39,7 +39,7 @@ class PlayerQuickButtonsManager(
 
     interface Callbacks {
         fun onSpeedClicked(anchor: TextView?)
-        fun onSkip90Clicked()
+        fun onSkip80Clicked()
         fun onOrientationClicked()
         fun onAspectClicked()
         fun onPlaylistClicked()
@@ -51,6 +51,7 @@ class PlayerQuickButtonsManager(
         fun onButtonInteracted()
         fun getCurrentUri(): String?
         fun getCurrentName(): String
+        fun getCurrentSize(): Long = 0L
         fun getOrientationLabel(): String
         fun getAspectLabel(): String
         fun isSoftwareDecoder(): Boolean
@@ -58,7 +59,7 @@ class PlayerQuickButtonsManager(
 
     val allQuickButtons = listOf(
         "speed" to "Playback Speed",
-        "skip90" to "Skip 90s (Anime OP)",
+        "skip80" to "Skip 80s (Anime OP)",
         "orientation" to "Orientation Lock",
         "aspect" to "Fit / Aspect Ratio",
         "playlist" to "In-Player Playlist",
@@ -83,7 +84,7 @@ class PlayerQuickButtonsManager(
         quickButtonsLayout.removeAllViews()
 
         val savedKeys = settingsPrefs.getStringSet("top_quick_buttons", null)
-            ?: setOf("speed", "skip90", "orientation", "aspect", "playlist", "delete")
+            ?: setOf("speed", "skip80", "orientation", "aspect", "playlist", "delete")
 
         fun quickBtn(text: String, onClick: () -> Unit) = TextView(activity).apply {
             this.text = text
@@ -105,46 +106,46 @@ class PlayerQuickButtonsManager(
             if (savedKeys.contains(key)) {
                 when (key) {
                     "speed" -> {
-                        val btn = quickBtn("⚡ Speed") { callbacks.onSpeedClicked(speedCircularBtn) }
+                        val btn = quickBtn("Speed") { callbacks.onSpeedClicked(speedCircularBtn) }
                         speedCircularBtn = btn
                         quickButtonsLayout.addView(btn)
                     }
-                    "skip90" -> quickButtonsLayout.addView(quickBtn("⏭ 90s OP") { callbacks.onSkip90Clicked() })
+                    "skip80" -> quickButtonsLayout.addView(quickBtn("80s OP") { callbacks.onSkip80Clicked() })
                     "orientation" -> {
-                        val btn = quickBtn("🔄 ${callbacks.getOrientationLabel()}") { callbacks.onOrientationClicked() }
+                        val btn = quickBtn(callbacks.getOrientationLabel()) { callbacks.onOrientationClicked() }
                         orientationCircularBtn = btn
                         quickButtonsLayout.addView(btn)
                     }
                     "aspect" -> {
-                        val btn = quickBtn("📐 ${callbacks.getAspectLabel()}") { callbacks.onAspectClicked() }
+                        val btn = quickBtn(callbacks.getAspectLabel()) { callbacks.onAspectClicked() }
                         aspectCircularBtn = btn
                         quickButtonsLayout.addView(btn)
                     }
                     "playlist" -> {
-                        val btn = quickBtn("📑 List") { callbacks.onPlaylistClicked() }
+                        val btn = quickBtn("List") { callbacks.onPlaylistClicked() }
                         quickButtonsLayout.addView(btn)
                     }
                     "delete" -> {
-                        val btn = quickBtn("🗑 Del") { handleDeleteButtonTap() }
+                        val btn = quickBtn("Del") { handleDeleteButtonTap() }
                         deleteCircularBtn = btn
                         quickButtonsLayout.addView(btn)
                     }
-                    "audio" -> quickButtonsLayout.addView(quickBtn("🎵 Audio") { callbacks.onAudioClicked() })
-                    "subtitle" -> quickButtonsLayout.addView(quickBtn("💬 Sub") { callbacks.onSubtitleClicked() })
+                    "audio" -> quickButtonsLayout.addView(quickBtn("Audio") { callbacks.onAudioClicked() })
+                    "subtitle" -> quickButtonsLayout.addView(quickBtn("Sub") { callbacks.onSubtitleClicked() })
                     "decoder" -> {
                         val btn = quickBtn(if (callbacks.isSoftwareDecoder()) "SW" else "HW") { callbacks.onDecoderClicked() }
                         decoderCircularBtn = btn
                         quickButtonsLayout.addView(btn)
                     }
-                    "timer" -> quickButtonsLayout.addView(quickBtn("⏱ Timer") { callbacks.onTimerClicked() })
+                    "timer" -> quickButtonsLayout.addView(quickBtn("Timer") { callbacks.onTimerClicked() })
                 }
             }
         }
     }
 
     fun updateDynamicLabels() {
-        orientationCircularBtn?.text = "🔄 ${callbacks.getOrientationLabel()}"
-        aspectCircularBtn?.text = "📐 ${callbacks.getAspectLabel()}"
+        orientationCircularBtn?.text = callbacks.getOrientationLabel()
+        aspectCircularBtn?.text = callbacks.getAspectLabel()
         decoderCircularBtn?.text = if (callbacks.isSoftwareDecoder()) "SW" else "HW"
     }
 
@@ -154,19 +155,19 @@ class PlayerQuickButtonsManager(
 
         when (deleteTapCount) {
             1 -> {
-                deleteCircularBtn?.text = "🗑 3 more"
+                deleteCircularBtn?.text = "3 more"
                 deleteCircularBtn?.setTextColor(0xffff7777.toInt())
                 hudController.showQuickFeedback("Tap 3 more times to delete")
                 handler.postDelayed(deleteResetRunnable, 2500)
             }
             2 -> {
-                deleteCircularBtn?.text = "🗑 2 more"
+                deleteCircularBtn?.text = "2 more"
                 deleteCircularBtn?.setTextColor(0xffff5555.toInt())
                 hudController.showQuickFeedback("Tap 2 more times to delete")
                 handler.postDelayed(deleteResetRunnable, 2500)
             }
             3 -> {
-                deleteCircularBtn?.text = "🗑 1 more!"
+                deleteCircularBtn?.text = "1 more!"
                 deleteCircularBtn?.setTextColor(0xffff2222.toInt())
                 hudController.showQuickFeedback("Tap 1 more time to delete!")
                 handler.postDelayed(deleteResetRunnable, 2500)
@@ -182,7 +183,7 @@ class PlayerQuickButtonsManager(
     fun resetDeleteTaps() {
         deleteTapCount = 0
         handler.removeCallbacks(deleteResetRunnable)
-        deleteCircularBtn?.text = "🗑 Del"
+        deleteCircularBtn?.text = "Del"
         deleteCircularBtn?.setTextColor(Color.WHITE)
     }
 

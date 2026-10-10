@@ -129,7 +129,7 @@ class LibraryDisplayCoordinator(
                 LibraryListItem.Header(
                     "SEEN VIDEOS",
                     sorted.size,
-                    actionText = "🗑 Delete All Seen",
+                    actionText = "Delete All Seen",
                     onActionClick = { actionManager.promptDeleteAllSeen(sorted) },
                     secondaryActionText = "Clear History",
                     onSecondaryActionClick = { actionManager.promptClearSeenHistory() }

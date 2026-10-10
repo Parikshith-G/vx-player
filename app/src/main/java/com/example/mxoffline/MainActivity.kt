@@ -131,7 +131,7 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
 
         actionManager = LibraryBatchActionManager(this, resumePrefs, seenPrefs, executor, mainHandler, batchDeleteLauncher) { loadDeviceVideos() }
         displayCoordinator = LibraryDisplayCoordinator(resumePrefs, seenPrefs, actionManager)
-        adapter = LibraryAdapter({ v, l -> PlayerLauncher.start(this, l, l.indexOf(v).coerceAtLeast(0)) }, { f -> openDeviceFolder(f) }, { e -> if (e.isDirectory) openSafFolder(e) else playSafEntry(e) }, resumePrefs)
+        adapter = LibraryAdapter({ v, l -> PlayerLauncher.start(this, l, l.indexOf(v).coerceAtLeast(0)) }, { f -> openDeviceFolder(f) }, { e -> if (e.isDirectory) openSafFolder(e) else playSafEntry(e) }, resumePrefs, { v, l -> showVideoActionDialog(v, l) })
         ui.recyclerView.adapter = adapter
 
         setupBackNavigation()
@@ -178,7 +178,11 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
             if (seenPrefs.all.isEmpty() && resumePrefs.all.isEmpty()) AppBackupManager.autoRestoreIfAvailable(this@MainActivity)
             val videos = MediaScanner.scanDeviceVideos(contentResolver)
             val folders = MediaScanner.groupIntoFolders(videos)
-            mainHandler.post { allDeviceVideos = videos; deviceFolders = folders; refreshCurrentDisplay() }
+            mainHandler.post {
+                allDeviceVideos = videos; deviceFolders = folders
+                if (currentTab == TAB_FOLDER_VIDEOS) currentFolderVideos = folders.find { it.name == currentActiveFolderName }?.videos ?: emptyList()
+                refreshCurrentDisplay()
+            }
         }
     }
 
@@ -268,5 +272,24 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
             onImport = { backupImportLauncher.launch(arrayOf("application/json", "*/*")) },
             onRestoreSuccess = { sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0); loadDeviceVideos() }
         )
+    }
+
+    private fun showVideoActionDialog(video: VideoItem, playlist: List<VideoItem>) {
+        val isSeen = displayCoordinator.isVideoSeen(video)
+        val options = arrayOf("Play", if (isSeen) "Mark as Unseen" else "Mark as Seen", "Delete Video")
+        android.app.AlertDialog.Builder(this).setTitle(video.name).setItems(options) { _, which ->
+            when (which) {
+                0 -> PlayerLauncher.start(this, playlist, playlist.indexOf(video).coerceAtLeast(0))
+                1 -> toggleSeenStatus(video, isSeen)
+                2 -> actionManager.promptDeleteSingleVideo(video)
+            }
+        }.setNegativeButton("Cancel", null).show()
+    }
+
+    private fun toggleSeenStatus(video: VideoItem, currentlySeen: Boolean) {
+        val editor = seenPrefs.edit(); val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)
+        if (currentlySeen) keys.forEach { editor.remove(it) } else { val now = System.currentTimeMillis(); keys.forEach { editor.putLong(it, now) } }
+        editor.apply(); AppBackupManager.backupToStorageAsync(this); refreshCurrentDisplay()
+        Toast.makeText(this, if (currentlySeen) "Marked as Unseen" else "Marked as Seen", Toast.LENGTH_SHORT).show()
     }
 }

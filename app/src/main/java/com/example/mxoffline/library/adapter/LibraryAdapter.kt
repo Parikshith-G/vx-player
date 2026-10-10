@@ -27,7 +27,8 @@ class LibraryAdapter(
     private val onVideoClick: (VideoItem, List<VideoItem>) -> Unit,
     private val onFolderClick: (FolderItem) -> Unit,
     private val onSafClick: (SafEntry) -> Unit,
-    private val resumePrefs: SharedPreferences
+    private val resumePrefs: SharedPreferences,
+    private val onVideoLongClick: ((VideoItem, List<VideoItem>) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -196,6 +197,7 @@ class LibraryAdapter(
                 }
 
                 holder.itemView.setOnClickListener { onVideoClick(video, videoItem.playlist) }
+                holder.itemView.setOnLongClickListener { onVideoLongClick?.invoke(video, videoItem.playlist); true }
             }
 
             is FolderHolder -> {
@@ -211,7 +213,7 @@ class LibraryAdapter(
                     ThumbnailLoader.load(ctx, folder.latestVideoUri, folder.latestVideoId, holder.views.thumb)
                 } else {
                     holder.views.thumb.visibility = View.GONE
-                    holder.views.folderIcon.text = "📁"
+                    holder.views.folderIcon.text = "DIR"
                     holder.views.folderIcon.visibility = View.VISIBLE
                 }
 
@@ -226,7 +228,7 @@ class LibraryAdapter(
 
                 if (entry.isDirectory) {
                     holder.views.thumb.visibility = View.GONE
-                    holder.views.folderIcon.text = "📁"
+                    holder.views.folderIcon.text = "DIR"
                     holder.views.folderIcon.visibility = View.VISIBLE
                     holder.views.subtitle.text = "FOLDER"
                 } else {

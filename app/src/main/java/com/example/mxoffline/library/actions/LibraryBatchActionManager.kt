@@ -73,6 +73,17 @@ class LibraryBatchActionManager(
             .show()
     }
 
+    fun promptDeleteSingleVideo(video: VideoItem) {
+        AlertDialog.Builder(activity)
+            .setTitle("Delete Video")
+            .setMessage("Permanently delete \"${video.name}\" from device storage? This cannot be undone.")
+            .setPositiveButton("Delete") { _, _ ->
+                performBatchDelete(listOf(video))
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     fun promptDeleteAllSeen(videos: List<VideoItem>) {
         if (videos.isEmpty()) return
         val count = videos.size
@@ -114,7 +125,10 @@ class LibraryBatchActionManager(
                 if (video.uri.scheme == "file") {
                     runCatching {
                         val f = File(video.uri.path ?: "")
-                        if (f.exists()) success = f.delete()
+                        if (f.exists()) {
+                            success = f.delete()
+                            android.media.MediaScannerConnection.scanFile(activity, arrayOf(f.absolutePath), null, null)
+                        }
                     }
                 } else if (DocumentsContract.isDocumentUri(activity, video.uri)) {
                     runCatching {
@@ -137,11 +151,12 @@ class LibraryBatchActionManager(
             }
             seenEditor.apply()
             resumeEditor.apply()
-            AppBackupManager.clearBackupData(activity)
+            AppBackupManager.backupToStorageAsync(activity)
 
             mainHandler.post {
                 onDataChanged()
-                Toast.makeText(activity, "Deleted $deletedCount of ${videos.size} seen video(s)", Toast.LENGTH_SHORT).show()
+                val msg = if (videos.size == 1) "Deleted ${videos.first().name}" else "Deleted $deletedCount of ${videos.size} video(s)"
+                Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -155,14 +170,15 @@ class LibraryBatchActionManager(
         }
         seenEditor.apply()
         resumeEditor.apply()
-        AppBackupManager.clearBackupData(activity)
+        AppBackupManager.backupToStorageAsync(activity)
         onDataChanged()
-        Toast.makeText(activity, "Deleted ${videos.size} seen video(s)", Toast.LENGTH_SHORT).show()
+        val msg = if (videos.size == 1) "Deleted ${videos.first().name}" else "Deleted ${videos.size} video(s)"
+        Toast.makeText(activity, msg, Toast.LENGTH_SHORT).show()
         pendingBatchDeleteVideos = emptyList()
     }
 
     fun onBatchDeleteCancelled() {
-        Toast.makeText(activity, "Batch delete cancelled", Toast.LENGTH_SHORT).show()
+        Toast.makeText(activity, "Delete cancelled", Toast.LENGTH_SHORT).show()
         pendingBatchDeleteVideos = emptyList()
     }
 }
