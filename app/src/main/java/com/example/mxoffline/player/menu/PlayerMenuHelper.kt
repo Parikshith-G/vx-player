@@ -25,6 +25,8 @@ object PlayerMenuHelper {
         fun onVideoInfoDialog()
         fun onEnterPip()
         fun onRestoreSettings()
+        fun onToggleBtDoubleTap(): Boolean = false
+        fun isBtDoubleTapEnabled(): Boolean = false
     }
 
     fun showHamburgerMenu(activity: Activity, isBgPlayEnabled: Boolean, callback: Callback) {
@@ -38,6 +40,7 @@ object PlayerMenuHelper {
             "HW / SW Decoder",
             "Sleep Timer",
             "Background Play: ${if (isBgPlayEnabled) "On" else "Off"}",
+            "Bluetooth Double Tap: ${if (callback.isBtDoubleTapEnabled()) "On" else "Off"}",
             "Video Information",
             "Picture-in-Picture",
             "💾 Backup & Restore (Survives Uninstall)"
@@ -55,9 +58,10 @@ object PlayerMenuHelper {
                     6 -> callback.onToggleDecoder()
                     7 -> callback.onSleepTimerDialog()
                     8 -> callback.onToggleBackgroundPlay()
-                    9 -> callback.onVideoInfoDialog()
-                    10 -> callback.onEnterPip()
-                    11 -> showBackupRestoreDialog(activity) { callback.onRestoreSettings() }
+                    9 -> callback.onToggleBtDoubleTap()
+                    10 -> callback.onVideoInfoDialog()
+                    11 -> callback.onEnterPip()
+                    12 -> showBackupRestoreDialog(activity) { callback.onRestoreSettings() }
                 }
             }
             .show()

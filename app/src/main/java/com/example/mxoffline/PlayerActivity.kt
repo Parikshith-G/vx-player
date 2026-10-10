@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.TypedValue
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -52,6 +53,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     private var isMuted = false; private var preferSoftwareDecoder = false
     private var backgroundPlayEnabled = false; private var subtitleFontSizeSp = 18f; private var currentPlaybackSpeed = 1.0f
+    private var lastBtMediaTapTime = 0L
 
     private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { if (it.resultCode == RESULT_OK) onVideoDeletedSuccess() else Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show() }
 
@@ -108,7 +110,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             onPipPlay = { if (::player.isInitialized) { if (player.playbackState == androidx.media3.common.Player.STATE_IDLE || player.playerError != null) player.prepare(); player.play(); s.pip.updatePipParams(player, ui.playerView) } },
             onPipPause = { if (::player.isInitialized) { player.pause(); s.pip.updatePipParams(player, ui.playerView) } },
             onPipPrev = { if (::player.isInitialized) { s.playlist.previousVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
-            onPipNext = { if (::player.isInitialized) { s.playlist.nextVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
+            onPipNext = { if (::player.isInitialized) { s.seen.markCurrentVideoAsSeen(s.playlist); s.playlist.nextVideo(player); s.pip.updatePipParams(player, ui.playerView) } },
             onPipDismiss = { if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.pause() }; finish() }
         )
 
@@ -156,7 +158,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         ui.prevBtn.setOnClickListener { s.playlist.previousVideo(player) }
         s.timeline.setupHoldToContinuousSeek(ui.prevBtn, false, { player }, { s.controlsLock.scheduleHideControls() })
         ui.playPauseBtn.setOnClickListener { togglePlay() }
-        ui.nextBtn.setOnClickListener { s.playlist.nextVideo(player) }
+        ui.nextBtn.setOnClickListener { s.seen.markCurrentVideoAsSeen(s.playlist); s.playlist.nextVideo(player) }
         s.timeline.setupHoldToContinuousSeek(ui.nextBtn, true, { player }, { s.controlsLock.scheduleHideControls() })
         ui.markDoneBtn.setOnClickListener {
             val marked = s.seen.toggleMarkCurrentVideoAsSeen(s.playlist)
@@ -282,7 +284,37 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         if (empty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(newIdx); player.seekTo(newIdx, 0L); player.play(); onPlaylistIndexChanged() }
     }
     override fun onSkip80Clicked() = skipForward80s()
-    private fun skipForward80s() { seekBy(80_000L); s.hud.showQuickFeedback("⏭ +80s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
+    private fun skipForward80s() { seekBy(80_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
+
+    override fun onToggleBtDoubleTap(): Boolean {
+        val next = !isBtDoubleTapEnabled()
+        settingsPrefs.edit().putBoolean("bt_double_tap_pause", next).apply()
+        s.quickButtons.updateDynamicLabels()
+        s.hud.showQuickFeedback(if (next) "BT Double Tap: ON" else "BT Double Tap: OFF")
+        return next
+    }
+    override fun isBtDoubleTapEnabled(): Boolean = com.example.mxoffline.util.PreferenceHelper.safeGetBoolean(settingsPrefs, "bt_double_tap_pause", false)
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && isBtDoubleTapEnabled()) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (now - lastBtMediaTapTime <= 450) {
+                        lastBtMediaTapTime = 0L; togglePlay()
+                        s.hud.showQuickFeedback(if (::player.isInitialized && player.isPlaying) "Ⅱ Pause (BT 2×)" else "▶ Play (BT 2×)")
+                        return true
+                    } else { lastBtMediaTapTime = now }
+                }
+                KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                    togglePlay()
+                    s.hud.showQuickFeedback(if (::player.isInitialized && player.isPlaying) "Ⅱ Pause (BT 2×)" else "▶ Play (BT 2×)")
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     override fun onButtonInteracted() = s.controlsLock.scheduleHideControls()
     override fun getCurrentUri() = s.playlist.getCurrentUri(); override fun getCurrentName() = s.playlist.getCurrentName()
