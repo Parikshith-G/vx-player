@@ -99,8 +99,13 @@ class TourHighlightOverlay(context: Context) : View(context) {
         this.currentType = type
         this.zoneLabel = label
         this.cornerRadiusPx = 32f
+        if (width > 0 && height > 0) {
+            updateZoneRect(width.toFloat(), height.toFloat())
+        }
         startPulse()
     }
+
+    fun getTargetRect(): RectF = RectF(targetRect)
 
     fun clearHighlight() {
         pulseAnimator.cancel()
@@ -119,6 +124,37 @@ class TourHighlightOverlay(context: Context) : View(context) {
         invalidate()
     }
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (w > 0 && h > 0 && currentType != HighlightType.VIEW_TARGET && currentType != HighlightType.NONE) {
+            updateZoneRect(w.toFloat(), h.toFloat())
+        }
+    }
+
+    private fun updateZoneRect(w: Float, h: Float) {
+        when (currentType) {
+            HighlightType.ZONE_TOP_LEFT_CORNER -> {
+                targetRect.set(16f, 16f, w * 0.35f, h * 0.28f)
+            }
+            HighlightType.ZONE_TOP_RIGHT_CORNER -> {
+                targetRect.set(w * 0.65f, 16f, w - 16f, h * 0.28f)
+            }
+            HighlightType.ZONE_CENTER_BOOST -> {
+                val left = w * 0.25f
+                val top = h * 0.28f
+                targetRect.set(left, top, w * 0.75f, top + h * 0.44f)
+            }
+            HighlightType.ZONE_LEFT_BRIGHTNESS -> {
+                targetRect.set(24f, h * 0.15f, w * 0.40f, h * 0.82f)
+            }
+            HighlightType.ZONE_RIGHT_VOLUME -> {
+                targetRect.set(w * 0.60f, h * 0.15f, w - 24f, h * 0.82f)
+            }
+            HighlightType.VIEW_TARGET, HighlightType.NONE -> {
+            }
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (currentType == HighlightType.NONE) return
@@ -131,32 +167,8 @@ class TourHighlightOverlay(context: Context) : View(context) {
         canvas.drawRect(0f, 0f, w, h, scrimPaint)
 
         // 2. Compute zone rects if not a direct view target
-        when (currentType) {
-            HighlightType.ZONE_TOP_LEFT_CORNER -> {
-                // Top-left 1/4th vertical, left 35% horizontal
-                targetRect.set(16f, 16f, w * 0.35f, h * 0.28f)
-            }
-            HighlightType.ZONE_TOP_RIGHT_CORNER -> {
-                // Top-right 1/4th vertical, right 35% horizontal
-                targetRect.set(w * 0.65f, 16f, w - 16f, h * 0.28f)
-            }
-            HighlightType.ZONE_CENTER_BOOST -> {
-                // Center 50% width and 45% height
-                val left = w * 0.25f
-                val top = h * 0.28f
-                targetRect.set(left, top, w * 0.75f, top + h * 0.44f)
-            }
-            HighlightType.ZONE_LEFT_BRIGHTNESS -> {
-                // Left 40% vertical swipe region
-                targetRect.set(24f, h * 0.15f, w * 0.40f, h * 0.82f)
-            }
-            HighlightType.ZONE_RIGHT_VOLUME -> {
-                // Right 40% vertical swipe region
-                targetRect.set(w * 0.60f, h * 0.15f, w - 24f, h * 0.82f)
-            }
-            HighlightType.VIEW_TARGET, HighlightType.NONE -> {
-                // targetRect already defined
-            }
+        if (currentType != HighlightType.VIEW_TARGET) {
+            updateZoneRect(w, h)
         }
 
         if (!targetRect.isEmpty) {

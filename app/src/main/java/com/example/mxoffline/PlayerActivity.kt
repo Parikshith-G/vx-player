@@ -56,6 +56,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     private var backgroundPlayEnabled = false; private var subtitleFontSizeSp = 18f; private var currentPlaybackSpeed = 1.0f
     private var sleepTimerAtEndOfVideo = false
     private var mediaSessionManager: com.example.mxoffline.player.playback.PlayerMediaSessionManager? = null
+    private var tourHelper: com.example.mxoffline.player.dialog.PlayerFeatureTourHelper? = null
 
     private val deleteLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { if (it.resultCode == RESULT_OK) onVideoDeletedSuccess() else Toast.makeText(this, "Delete cancelled", Toast.LENGTH_SHORT).show() }
 
@@ -152,7 +153,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     private fun setupBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (s.controlsLock.isScreenLocked) s.controlsLock.showLockTemporarily()
+                if (tourHelper?.isShowing == true) tourHelper?.dismissTour()
+                else if (s.controlsLock.isScreenLocked) s.controlsLock.showLockTemporarily()
                 else if (s.controlsLock.controlsVisible) s.controlsLock.toggleControls()
                 else finish()
             }
@@ -199,9 +201,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     private fun setupListeners() {
         ui.backButton.setOnClickListener { finish() }
         ui.titleView.setOnClickListener { onVideoInfoDialog() }
-        ui.helpButton.setOnClickListener {
-            com.example.mxoffline.player.dialog.PlayerFeatureTourHelper(this, ui).showTour()
-        }
+        ui.helpButton.setOnClickListener { onFeatureTour() }
         ui.menuButton.setOnClickListener { PlayerMenuHelper.showHamburgerMenu(this, backgroundPlayEnabled, this) }
         ui.topTimeStatusView.setOnClickListener { s.header.cycleTopTimeMode(s.hud) }
         ui.lockBtn.setOnClickListener { s.controlsLock.lockScreen() }; ui.lockFloatingBtn.setOnClickListener { s.controlsLock.unlockScreen() }
@@ -314,7 +314,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) s.controlsLock.hideSystemBars() }
     override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); s.controlsLock.hideSystemBars(); if (::player.isInitialized) s.header.update(player) }
     override fun onResume() { super.onResume(); s.pip.onResumeClean(); s.controlsLock.hideSystemBars(); s.header.setVisible(true); s.controlsLock.setControlsVisible(s.controlsLock.controlsVisible) }
-    override fun onPause() { super.onPause(); if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); if (!(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) && !backgroundPlayEnabled) player.pause() }; AppBackupManager.backupToStorageAsync(this) }
+    override fun onPause() { super.onPause(); tourHelper?.dismissTour(); if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); if (!(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) && !backgroundPlayEnabled) player.pause() }; AppBackupManager.backupToStorageAsync(this) }
     override fun onStop() { super.onStop(); if (::player.isInitialized && !(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) && !backgroundPlayEnabled) player.pause() }
     override fun onUserLeaveHint() { super.onUserLeaveHint(); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && ::player.isInitialized) onEnterPip() }
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: Configuration) {
@@ -323,6 +323,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     }
 
     override fun onDestroy() {
+        tourHelper?.dismissTour(); tourHelper = null
         handler.removeCallbacksAndMessages(null); s.pip.onDestroyClean(); s.controlsLock.release()
         mediaSessionManager?.release(); mediaSessionManager = null
         if (::player.isInitialized) { s.resume.savePosition(player, s.playlist); player.pause(); s.audioBoost.release(); ui.playerView.player = null; player.release() }
@@ -427,6 +428,9 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onToggleBackgroundPlay(): Boolean { backgroundPlayEnabled = !backgroundPlayEnabled; settingsPrefs.edit().putBoolean("bg_play", backgroundPlayEnabled).apply(); s.hud.showQuickFeedback("Background Play: ${if (backgroundPlayEnabled) "On" else "Off"}"); return backgroundPlayEnabled }
     override fun onVideoInfoDialog() = s.dialogs?.showVideoInfoDialog(s.playlist.getCurrentName(), preferSoftwareDecoder) ?: Unit
     override fun onEnterPip() = if (::player.isInitialized) s.pip.enterPip(player, ui.playerView, { ui.overlayContainer.visibility = View.GONE; s.header.setVisible(false); ui.lockFloatingBtn.visibility = View.GONE }, { ui.overlayContainer.visibility = View.VISIBLE; s.header.setVisible(true) }) else Unit
-    override fun onFeatureTour() = com.example.mxoffline.player.dialog.PlayerFeatureTourHelper(this, ui).showTour()
+    override fun onFeatureTour() {
+        tourHelper?.dismissTour()
+        tourHelper = com.example.mxoffline.player.dialog.PlayerFeatureTourHelper(this, ui).also { it.showTour() }
+    }
     override fun onRestoreSettings() { if (::player.isInitialized) { s.screen.syncFromPreferences(this, player, ui.playerView); s.header.syncFromPreferences(); s.timeline.syncFromPreferences(); s.quickButtons.renderButtons(); onPlaylistIndexChanged() } }
 }

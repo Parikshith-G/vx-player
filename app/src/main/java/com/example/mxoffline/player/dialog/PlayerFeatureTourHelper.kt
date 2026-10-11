@@ -1,14 +1,15 @@
 /**
  * Role: Interactive tour and functionality tutorial coordinator.
  * Responsibility: Guides users through player gestures, tray buttons, and playback controls step by step.
- * Details: Displays an interactive walkthrough dialog with highlight badges, pulsing zone illumination, and Previous/Next navigation.
+ * Details: Displays an interactive walkthrough using a non-blocking, translucent floating card that dynamically moves away from the highlighted element.
  */
 package com.example.mxoffline.player.dialog
 
-import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -32,6 +33,13 @@ class PlayerFeatureTourHelper(
         val zoneLabel: String = "",
         val targetViewProvider: ((PlayerUiViews) -> View?)? = null
     )
+
+    private enum class CardPlacement {
+        TOP,
+        BOTTOM,
+        LEFT,
+        RIGHT
+    }
 
     private val steps = listOf(
         TourStep(
@@ -134,131 +142,325 @@ class PlayerFeatureTourHelper(
 
     private var currentStepIndex = 0
     private var highlightOverlay: TourHighlightOverlay? = null
-    private var currentDialog: AlertDialog? = null
+    private var cardContainer: LinearLayout? = null
+    private var stepBadgeView: TextView? = null
+    private var titleTextView: TextView? = null
+    private var targetLabelView: TextView? = null
+    private var descTextView: TextView? = null
+    private var prevButton: Button? = null
+    private var nextButton: Button? = null
+
+    val isShowing: Boolean
+        get() = cardContainer != null && highlightOverlay != null
 
     fun showTour(startIndex: Int = 0) {
         currentStepIndex = startIndex.coerceIn(0, steps.size - 1)
+        views.overlayContainer.visibility = View.VISIBLE
         attachOverlay()
-        renderDialog()
+        attachCard()
+        showCurrentStep(animate = false)
+    }
+
+    fun dismissTour() {
+        highlightOverlay?.let { views.root.removeView(it) }
+        highlightOverlay = null
+
+        cardContainer?.let { views.root.removeView(it) }
+        cardContainer = null
     }
 
     private fun attachOverlay() {
         if (highlightOverlay == null) {
-            val overlay = TourHighlightOverlay(context)
-            views.root.addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            val overlay = TourHighlightOverlay(context).apply {
+                setOnClickListener { dismissTour() }
+            }
+            views.root.addView(
+                overlay,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
             highlightOverlay = overlay
         }
     }
 
-    private fun detachOverlay() {
-        highlightOverlay?.let {
-            views.root.removeView(it)
+    private fun attachCard() {
+        if (cardContainer == null) {
+            val card = buildCard()
+            views.root.addView(card)
+            cardContainer = card
         }
-        highlightOverlay = null
     }
 
-    private fun renderDialog() {
+    private fun buildCard(): LinearLayout {
         val dp = { v: Int -> UiUtils.dp(context, v) }
-        val step = steps[currentStepIndex]
+        val dpF = { v: Float -> v * context.resources.displayMetrics.density }
 
-        applyHighlight(step)
-
-        val root = LinearLayout(context).apply {
+        val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(16))
-            setBackgroundColor(0xff1e222e.toInt())
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            isClickable = true
+            isFocusable = true
+
+            val cardBg = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(16f)
+                setColor(0xd8141824.toInt()) // Sleek translucent dark acrylic
+                setStroke(dp(1), 0x55ffc400.toInt()) // Subtle amber stroke
+            }
+            background = cardBg
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                elevation = dpF(12f)
+            }
         }
 
-        val stepBadge = TextView(context).apply {
-            text = "STEP ${currentStepIndex + 1} OF ${steps.size}"
-            textSize = 11f
+        // Header row with step badge and close button
+        val headerRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val badge = TextView(context).apply {
+            textSize = 10.5f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(0xffffc400.toInt())
-            setPadding(0, 0, 0, dp(4))
+            setPadding(dp(8), dp(3), dp(8), dp(3))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(8f)
+                setColor(0x33ffc400.toInt())
+            }
         }
-        root.addView(stepBadge)
+        stepBadgeView = badge
+        headerRow.addView(badge, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
+        val spacer = View(context)
+        headerRow.addView(spacer, LinearLayout.LayoutParams(0, 0, 1f))
+
+        val closeBtn = TextView(context).apply {
+            text = "✕"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(0xaaeff0f5.toInt())
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(10f)
+                setColor(0x22ffffff.toInt())
+            }
+            setOnClickListener { dismissTour() }
+        }
+        headerRow.addView(closeBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        card.addView(headerRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        // Title
+        val titleView = TextView(context).apply {
+            textSize = 15.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(0, dp(6), 0, dp(2))
+        }
+        titleTextView = titleView
+        card.addView(titleView)
+
+        // Target name
         val targetLabel = TextView(context).apply {
-            text = "🎯 ${step.targetName}"
-            textSize = 13f
+            textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(0xff90caf9.toInt())
-            setPadding(0, 0, 0, dp(8))
+            setPadding(0, 0, 0, dp(6))
         }
-        root.addView(targetLabel)
+        targetLabelView = targetLabel
+        card.addView(targetLabel)
 
-        val desc = TextView(context).apply {
-            text = step.description
-            textSize = 14f
-            setTextColor(0xffe0e0e0.toInt())
-            setLineSpacing(dp(2).toFloat(), 1.15f)
-            setPadding(0, 0, 0, dp(16))
+        // Description
+        val descView = TextView(context).apply {
+            textSize = 13.5f
+            setTextColor(0xffdedede.toInt())
+            setLineSpacing(dpF(2f), 1.15f)
+            setPadding(0, 0, 0, dp(12))
         }
-        root.addView(desc)
+        descTextView = descView
+        card.addView(descView)
 
+        // Buttons row
         val buttonsRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
         }
 
         fun styleBtn(b: Button, bgCol: Int, textCol: Int) = b.apply {
-            setBackgroundColor(bgCol)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(8f)
+                setColor(bgCol)
+            }
             setTextColor(textCol)
             typeface = Typeface.DEFAULT_BOLD
             textSize = 12f
             isAllCaps = false
-            setPadding(dp(12), dp(6), dp(12), dp(6))
+            setPadding(dp(14), 0, dp(14), 0)
         }
 
         val prevBtn = Button(context).apply {
             text = "‹ Previous"
-            isEnabled = currentStepIndex > 0
-            alpha = if (isEnabled) 1.0f else 0.4f
-            styleBtn(this, 0x33ffffff.toInt(), Color.WHITE)
+            styleBtn(this, 0x2affffff.toInt(), Color.WHITE)
             setOnClickListener {
                 if (currentStepIndex > 0) {
-                    currentStepIndex--
-                    dismissCurrentDialog()
-                    renderDialog()
+                    goToStep(currentStepIndex - 1)
                 }
             }
         }
-        buttonsRow.addView(prevBtn, LinearLayout.LayoutParams(-2, dp(38)).apply { rightMargin = dp(8) })
+        prevButton = prevBtn
+        buttonsRow.addView(prevBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)).apply { rightMargin = dp(8) })
 
         val nextBtn = Button(context).apply {
-            text = if (currentStepIndex < steps.size - 1) "Next ›" else "Finish ✓"
+            text = "Next ›"
             styleBtn(this, 0xffffc400.toInt(), Color.BLACK)
             setOnClickListener {
                 if (currentStepIndex < steps.size - 1) {
-                    currentStepIndex++
-                    dismissCurrentDialog()
-                    renderDialog()
+                    goToStep(currentStepIndex + 1)
                 } else {
-                    dismissCurrentDialog()
-                    detachOverlay()
+                    dismissTour()
                 }
             }
         }
-        buttonsRow.addView(nextBtn, LinearLayout.LayoutParams(-2, dp(38)))
+        nextButton = nextBtn
+        buttonsRow.addView(nextBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(34)))
 
-        root.addView(buttonsRow)
+        card.addView(buttonsRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        val dialog = AlertDialog.Builder(context)
-            .setTitle(step.title)
-            .setView(root)
-            .setOnDismissListener {
-                detachOverlay()
-            }
-            .create()
-
-        currentDialog = dialog
-        dialog.show()
+        return card
     }
 
-    private fun dismissCurrentDialog() {
-        currentDialog?.setOnDismissListener(null)
-        currentDialog?.dismiss()
-        currentDialog = null
+    private fun goToStep(index: Int) {
+        currentStepIndex = index.coerceIn(0, steps.size - 1)
+        val step = steps[currentStepIndex]
+        applyHighlight(step)
+
+        val card = cardContainer ?: return
+        card.animate().alpha(0f).setDuration(100).withEndAction {
+            updateCardContent(step)
+            updateCardPosition(step)
+            card.animate().alpha(1f).setDuration(150).start()
+        }.start()
+    }
+
+    private fun showCurrentStep(animate: Boolean) {
+        val step = steps[currentStepIndex]
+        applyHighlight(step)
+        updateCardContent(step)
+        updateCardPosition(step)
+        if (animate) {
+            cardContainer?.alpha = 0f
+            cardContainer?.animate()?.alpha(1f)?.setDuration(180)?.start()
+        } else {
+            cardContainer?.alpha = 1f
+        }
+    }
+
+    private fun updateCardContent(step: TourStep) {
+        stepBadgeView?.text = "STEP ${currentStepIndex + 1} OF ${steps.size}"
+        titleTextView?.text = step.title
+        targetLabelView?.text = "🎯 ${step.targetName}"
+        descTextView?.text = step.description
+
+        val hasPrev = currentStepIndex > 0
+        prevButton?.isEnabled = hasPrev
+        prevButton?.alpha = if (hasPrev) 1.0f else 0.35f
+
+        val isLast = currentStepIndex == steps.size - 1
+        nextButton?.text = if (isLast) "Finish ✓" else "Next ›"
+    }
+
+    private fun determinePlacement(step: TourStep): CardPlacement {
+        val dp = { v: Int -> UiUtils.dp(context, v) }
+        val rootW = views.root.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
+        val rootH = views.root.height.takeIf { it > 0 } ?: context.resources.displayMetrics.heightPixels
+        val isLandscape = rootW > rootH
+
+        return when (step.zoneType) {
+            TourHighlightOverlay.HighlightType.ZONE_LEFT_BRIGHTNESS -> {
+                // If wide enough (landscape), place card on the right side away from left highlight
+                if (isLandscape && rootW >= dp(500)) CardPlacement.RIGHT else CardPlacement.BOTTOM
+            }
+            TourHighlightOverlay.HighlightType.ZONE_RIGHT_VOLUME -> {
+                // If wide enough (landscape), place card on the left side away from right highlight
+                if (isLandscape && rootW >= dp(500)) CardPlacement.LEFT else CardPlacement.BOTTOM
+            }
+            TourHighlightOverlay.HighlightType.ZONE_TOP_LEFT_CORNER,
+            TourHighlightOverlay.HighlightType.ZONE_TOP_RIGHT_CORNER,
+            TourHighlightOverlay.HighlightType.ZONE_CENTER_BOOST -> {
+                CardPlacement.BOTTOM
+            }
+            TourHighlightOverlay.HighlightType.NONE,
+            TourHighlightOverlay.HighlightType.VIEW_TARGET -> {
+                val targetView = step.targetViewProvider?.invoke(views)
+                if (targetView != null && targetView.isAttachedToWindow && targetView.height > 0) {
+                    val loc = IntArray(2)
+                    targetView.getLocationInWindow(loc)
+                    val rootLoc = IntArray(2)
+                    views.root.getLocationInWindow(rootLoc)
+                    val targetCenterY = (loc[1] - rootLoc[1]) + (targetView.height / 2f)
+                    if (targetCenterY < rootH * 0.5f) CardPlacement.BOTTOM else CardPlacement.TOP
+                } else {
+                    // Fallback based on known step targets
+                    if (currentStepIndex <= 6) CardPlacement.BOTTOM else CardPlacement.TOP
+                }
+            }
+        }
+    }
+
+    private fun updateCardPosition(step: TourStep) {
+        val card = cardContainer ?: return
+        val dp = { v: Int -> UiUtils.dp(context, v) }
+        val rootW = views.root.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
+
+        val placement = determinePlacement(step)
+        val params = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        when (placement) {
+            CardPlacement.TOP -> {
+                params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                params.width = minOf(dp(480), (rootW * 0.86f).toInt())
+                params.topMargin = dp(20)
+                params.bottomMargin = 0
+                params.leftMargin = 0
+                params.rightMargin = 0
+            }
+            CardPlacement.BOTTOM -> {
+                params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                params.width = minOf(dp(480), (rootW * 0.86f).toInt())
+                params.bottomMargin = dp(18)
+                params.topMargin = 0
+                params.leftMargin = 0
+                params.rightMargin = 0
+            }
+            CardPlacement.RIGHT -> {
+                params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                params.width = minOf(dp(360), (rootW * 0.46f).toInt())
+                params.rightMargin = dp(24)
+                params.leftMargin = 0
+                params.topMargin = 0
+                params.bottomMargin = 0
+            }
+            CardPlacement.LEFT -> {
+                params.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                params.width = minOf(dp(360), (rootW * 0.46f).toInt())
+                params.leftMargin = dp(24)
+                params.rightMargin = 0
+                params.topMargin = 0
+                params.bottomMargin = 0
+            }
+        }
+
+        card.layoutParams = params
     }
 
     private fun applyHighlight(step: TourStep) {
