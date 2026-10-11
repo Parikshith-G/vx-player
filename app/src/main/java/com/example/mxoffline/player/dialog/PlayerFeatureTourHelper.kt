@@ -1,7 +1,7 @@
 /**
  * Role: Interactive tour and functionality tutorial coordinator.
  * Responsibility: Guides users through player gestures, tray buttons, and playback controls step by step.
- * Details: Displays an interactive walkthrough dialog with highlight badges and Previous/Next navigation.
+ * Details: Displays an interactive walkthrough dialog with highlight badges, pulsing zone illumination, and Previous/Next navigation.
  */
 package com.example.mxoffline.player.dialog
 
@@ -11,7 +11,9 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.example.mxoffline.player.ui.PlayerUiViews
@@ -26,7 +28,9 @@ class PlayerFeatureTourHelper(
         val title: String,
         val targetName: String,
         val description: String,
-        val targetViewProvider: (PlayerUiViews) -> View?
+        val zoneType: TourHighlightOverlay.HighlightType = TourHighlightOverlay.HighlightType.NONE,
+        val zoneLabel: String = "",
+        val targetViewProvider: ((PlayerUiViews) -> View?)? = null
     )
 
     private val steps = listOf(
@@ -55,22 +59,46 @@ class PlayerFeatureTourHelper(
             targetViewProvider = { it.quickButtonsLayout }
         ),
         TourStep(
-            title = "Corner Double-Tap Seek",
-            targetName = "Top 1/4th Screen Corners (Gestures)",
-            description = "Double-tap the TOP-LEFT corner to rewind 5 seconds (⟲ 5s).\nDouble-tap the TOP-RIGHT corner to fast-forward 5 seconds (5s ⟳).\nDouble-tap the center to Toggle Play / Pause.",
-            targetViewProvider = { null }
+            title = "Top-Left 5s Rewind",
+            targetName = "Top-Left 1/4th Corner (Gesture Zone)",
+            description = "Double-tap the highlighted top-left corner anytime to instantly rewind 5 seconds (⟲ 5s).",
+            zoneType = TourHighlightOverlay.HighlightType.ZONE_TOP_LEFT_CORNER,
+            zoneLabel = "⏪ Double-Tap ⟲ 5s"
+        ),
+        TourStep(
+            title = "Top-Right 5s Fast-Forward",
+            targetName = "Top-Right 1/4th Corner (Gesture Zone)",
+            description = "Double-tap the highlighted top-right corner anytime to fast-forward 5 seconds (5s ⟳).",
+            zoneType = TourHighlightOverlay.HighlightType.ZONE_TOP_RIGHT_CORNER,
+            zoneLabel = "⏩ Double-Tap 5s ⟳"
+        ),
+        TourStep(
+            title = "Center Double-Tap Play/Pause",
+            targetName = "Center Screen (Gesture Zone)",
+            description = "Double-tap anywhere in the center to quickly Toggle Play / Pause.",
+            zoneType = TourHighlightOverlay.HighlightType.ZONE_CENTER_BOOST,
+            zoneLabel = "▶ / Ⅱ Double-Tap"
         ),
         TourStep(
             title = "Hold to Accelerate (Speed Boost)",
             targetName = "Screen Center (Gesture)",
             description = "Touch and hold anywhere on the video to boost speed (2.0× or custom). Slide horizontally while holding to adjust speed from 0.25× up to 8.0×.",
-            targetViewProvider = { null }
+            zoneType = TourHighlightOverlay.HighlightType.ZONE_CENTER_BOOST,
+            zoneLabel = "⚡ Hold to Boost Speed"
         ),
         TourStep(
-            title = "Vertical Swipe Controls",
-            targetName = "Left & Right Halves (Gestures)",
-            description = "Swipe vertically on the LEFT side to adjust screen brightness.\nSwipe vertically on the RIGHT side to adjust volume, with up to 200% Audio Boost.",
-            targetViewProvider = { null }
+            title = "Brightness Swipe Control",
+            targetName = "Left Screen Half (Vertical Swipe)",
+            description = "Swipe vertically on the highlighted left side to adjust screen brightness (0% – 100%).",
+            zoneType = TourHighlightOverlay.HighlightType.ZONE_LEFT_BRIGHTNESS,
+            zoneLabel = "☀ Swipe Brightness"
+        ),
+        TourStep(
+            title = "Volume & 200% Audio Boost",
+            targetName = "Right Screen Half (Vertical Swipe)",
+            description = "Swipe vertically on the highlighted right side to adjust volume, with up to 200% Audio Boost.",
+            zoneType = TourHighlightOverlay.HighlightType.ZONE_RIGHT_VOLUME,
+            zoneLabel = "🔊 Swipe Volume (+200%)"
         ),
         TourStep(
             title = "Skip Anime Opening (+90s OP)",
@@ -105,18 +133,35 @@ class PlayerFeatureTourHelper(
     )
 
     private var currentStepIndex = 0
-    private var activeHighlightView: View? = null
+    private var highlightOverlay: TourHighlightOverlay? = null
+    private var currentDialog: AlertDialog? = null
 
     fun showTour(startIndex: Int = 0) {
         currentStepIndex = startIndex.coerceIn(0, steps.size - 1)
+        attachOverlay()
         renderDialog()
+    }
+
+    private fun attachOverlay() {
+        if (highlightOverlay == null) {
+            val overlay = TourHighlightOverlay(context)
+            views.root.addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            highlightOverlay = overlay
+        }
+    }
+
+    private fun detachOverlay() {
+        highlightOverlay?.let {
+            views.root.removeView(it)
+        }
+        highlightOverlay = null
     }
 
     private fun renderDialog() {
         val dp = { v: Int -> UiUtils.dp(context, v) }
         val step = steps[currentStepIndex]
 
-        highlightTarget(step.targetViewProvider(views))
+        applyHighlight(step)
 
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -190,6 +235,7 @@ class PlayerFeatureTourHelper(
                     renderDialog()
                 } else {
                     dismissCurrentDialog()
+                    detachOverlay()
                 }
             }
         }
@@ -200,35 +246,34 @@ class PlayerFeatureTourHelper(
         val dialog = AlertDialog.Builder(context)
             .setTitle(step.title)
             .setView(root)
-            .setOnDismissListener { clearHighlight() }
+            .setOnDismissListener {
+                detachOverlay()
+            }
             .create()
 
         currentDialog = dialog
         dialog.show()
     }
 
-    private var currentDialog: AlertDialog? = null
-
     private fun dismissCurrentDialog() {
         currentDialog?.setOnDismissListener(null)
         currentDialog?.dismiss()
         currentDialog = null
-        clearHighlight()
     }
 
-    private fun highlightTarget(target: View?) {
-        clearHighlight()
-        if (target != null && target.visibility == View.VISIBLE) {
-            activeHighlightView = target
-            target.alpha = 1.0f
-            target.animate().scaleX(1.15f).scaleY(1.15f).setDuration(250).start()
+    private fun applyHighlight(step: TourStep) {
+        val overlay = highlightOverlay ?: return
+        if (step.zoneType != TourHighlightOverlay.HighlightType.NONE) {
+            overlay.highlightZone(step.zoneType, step.zoneLabel)
+        } else {
+            val target = step.targetViewProvider?.invoke(views)
+            if (target != null) {
+                target.post {
+                    overlay.highlightTargetView(target)
+                }
+            } else {
+                overlay.clearHighlight()
+            }
         }
-    }
-
-    private fun clearHighlight() {
-        activeHighlightView?.let { v ->
-            v.animate().scaleX(1.0f).scaleY(1.0f).setDuration(150).start()
-        }
-        activeHighlightView = null
     }
 }
