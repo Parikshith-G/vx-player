@@ -70,7 +70,7 @@ class TourHighlightOverlay(context: Context) : View(context) {
 
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
-        isClickable = false
+        isClickable = true
         isFocusable = false
     }
 

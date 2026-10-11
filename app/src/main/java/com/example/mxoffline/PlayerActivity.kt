@@ -430,7 +430,14 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onEnterPip() = if (::player.isInitialized) s.pip.enterPip(player, ui.playerView, { ui.overlayContainer.visibility = View.GONE; s.header.setVisible(false); ui.lockFloatingBtn.visibility = View.GONE }, { ui.overlayContainer.visibility = View.VISIBLE; s.header.setVisible(true) }) else Unit
     override fun onFeatureTour() {
         tourHelper?.dismissTour()
-        tourHelper = com.example.mxoffline.player.dialog.PlayerFeatureTourHelper(this, ui).also { it.showTour() }
+        tourHelper = com.example.mxoffline.player.dialog.PlayerFeatureTourHelper(
+            context = this,
+            views = ui,
+            controlsLock = s.controlsLock,
+            isPlayerPlaying = { if (::player.isInitialized) player.isPlaying else false },
+            pausePlayer = { if (::player.isInitialized) player.pause() },
+            resumePlayer = { if (::player.isInitialized) player.play() }
+        ).also { it.showTour() }
     }
     override fun onRestoreSettings() { if (::player.isInitialized) { s.screen.syncFromPreferences(this, player, ui.playerView); s.header.syncFromPreferences(); s.timeline.syncFromPreferences(); s.quickButtons.renderButtons(); onPlaylistIndexChanged() } }
 }

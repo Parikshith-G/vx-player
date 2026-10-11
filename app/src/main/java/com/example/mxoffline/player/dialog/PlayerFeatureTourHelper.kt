@@ -22,7 +22,11 @@ import com.example.mxoffline.util.UiUtils
 
 class PlayerFeatureTourHelper(
     private val context: Context,
-    private val views: PlayerUiViews
+    private val views: PlayerUiViews,
+    private val controlsLock: com.example.mxoffline.player.screen.PlayerControlsLockManager? = null,
+    private val isPlayerPlaying: (() -> Boolean)? = null,
+    private val pausePlayer: (() -> Unit)? = null,
+    private val resumePlayer: (() -> Unit)? = null
 ) {
 
     data class TourStep(
@@ -150,11 +154,24 @@ class PlayerFeatureTourHelper(
     private var prevButton: Button? = null
     private var nextButton: Button? = null
 
+    private var wasPlayingBeforeTour = false
+
     val isShowing: Boolean
         get() = cardContainer != null && highlightOverlay != null
 
     fun showTour(startIndex: Int = 0) {
         currentStepIndex = startIndex.coerceIn(0, steps.size - 1)
+
+        // Lock controls to visible and prevent auto-hide
+        controlsLock?.isTourActive = true
+        controlsLock?.cancelHideControls()
+
+        // Pause playback so video doesn't run away or trigger background state changes
+        wasPlayingBeforeTour = isPlayerPlaying?.invoke() == true
+        if (wasPlayingBeforeTour) {
+            pausePlayer?.invoke()
+        }
+
         views.overlayContainer.visibility = View.VISIBLE
         attachOverlay()
         attachCard()
@@ -162,18 +179,23 @@ class PlayerFeatureTourHelper(
     }
 
     fun dismissTour() {
+        controlsLock?.isTourActive = false
+
         highlightOverlay?.let { views.root.removeView(it) }
         highlightOverlay = null
 
         cardContainer?.let { views.root.removeView(it) }
         cardContainer = null
+
+        if (wasPlayingBeforeTour) {
+            resumePlayer?.invoke()
+        }
+        controlsLock?.scheduleHideControls()
     }
 
     private fun attachOverlay() {
         if (highlightOverlay == null) {
-            val overlay = TourHighlightOverlay(context).apply {
-                setOnClickListener { dismissTour() }
-            }
+            val overlay = TourHighlightOverlay(context)
             views.root.addView(
                 overlay,
                 FrameLayout.LayoutParams(
@@ -464,14 +486,25 @@ class PlayerFeatureTourHelper(
     }
 
     private fun applyHighlight(step: TourStep) {
+        views.overlayContainer.visibility = View.VISIBLE
+        controlsLock?.cancelHideControls()
         val overlay = highlightOverlay ?: return
         if (step.zoneType != TourHighlightOverlay.HighlightType.NONE) {
             overlay.highlightZone(step.zoneType, step.zoneLabel)
         } else {
             val target = step.targetViewProvider?.invoke(views)
             if (target != null) {
+                target.visibility = View.VISIBLE
                 target.post {
-                    overlay.highlightTargetView(target)
+                    if (target.isAttachedToWindow && target.width > 0 && target.height > 0) {
+                        overlay.highlightTargetView(target)
+                    } else {
+                        target.post {
+                            if (target.isAttachedToWindow) {
+                                overlay.highlightTargetView(target)
+                            }
+                        }
+                    }
                 }
             } else {
                 overlay.clearHighlight()

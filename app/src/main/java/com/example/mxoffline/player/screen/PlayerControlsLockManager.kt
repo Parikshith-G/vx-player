@@ -26,9 +26,18 @@ class PlayerControlsLockManager(
         private set
     var isScreenLocked: Boolean = false
         private set
+    var isTourActive: Boolean = false
+        set(value) {
+            field = value
+            if (value) {
+                handler.removeCallbacks(hideControlsRunnable)
+                overlayContainer.visibility = View.VISIBLE
+                controlsVisible = true
+            }
+        }
 
     private val hideControlsRunnable = Runnable {
-        if (isPlayerPlaying() && controlsVisible && !isScreenLocked) {
+        if (!isTourActive && isPlayerPlaying() && controlsVisible && !isScreenLocked) {
             overlayContainer.visibility = View.GONE
             controlsVisible = false
         }
@@ -37,6 +46,7 @@ class PlayerControlsLockManager(
     private val hideLockRunnable = Runnable { lockFloatingBtn.visibility = View.GONE }
 
     fun scheduleHideControls(delayMs: Long = 4500L) {
+        if (isTourActive) return
         handler.removeCallbacks(hideControlsRunnable)
         handler.postDelayed(hideControlsRunnable, delayMs)
     }
@@ -46,6 +56,11 @@ class PlayerControlsLockManager(
     }
 
     fun toggleControls() {
+        if (isTourActive) {
+            overlayContainer.visibility = View.VISIBLE
+            controlsVisible = true
+            return
+        }
         controlsVisible = !controlsVisible
         overlayContainer.visibility = if (controlsVisible) View.VISIBLE else View.GONE
         if (controlsVisible) {
@@ -57,12 +72,19 @@ class PlayerControlsLockManager(
     }
 
     fun setControlsVisible(visible: Boolean) {
+        if (isTourActive) {
+            overlayContainer.visibility = View.VISIBLE
+            controlsVisible = true
+            cancelHideControls()
+            return
+        }
         controlsVisible = visible
         overlayContainer.visibility = if (visible) View.VISIBLE else View.GONE
         if (visible) scheduleHideControls() else handler.removeCallbacks(hideControlsRunnable)
     }
 
     fun lockScreen() {
+        if (isTourActive) return
         isScreenLocked = true
         controlsVisible = false
         overlayContainer.visibility = View.GONE
