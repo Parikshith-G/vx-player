@@ -141,7 +141,9 @@ class PlayerTimelineManager(
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     handler.removeCallbacks(holdDetectRunnable)
                     handler.removeCallbacks(seekStepRunnable)
-                    if (!isHolding && event.action == MotionEvent.ACTION_UP) {
+                    if (isHolding) {
+                        hudController.hideSeek(600L)
+                    } else if (event.action == MotionEvent.ACTION_UP) {
                         v.performClick()
                     }
                     onAction()

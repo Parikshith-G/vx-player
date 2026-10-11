@@ -221,7 +221,7 @@ class PlayerGestureController(
                     }
 
                     GESTURE_NONE -> {
-                        handleTapOrDoubleTap(event.x, event.y, screenWidth)
+                        handleTapOrDoubleTap(event.x, event.y, screenWidth, screenHeight)
                     }
                 }
                 gestureMode = GESTURE_NONE
@@ -230,7 +230,7 @@ class PlayerGestureController(
         return true
     }
 
-    private fun handleTapOrDoubleTap(x: Float, y: Float, screenWidth: Float) {
+    private fun handleTapOrDoubleTap(x: Float, y: Float, screenWidth: Float, screenHeight: Float) {
         val now = System.currentTimeMillis()
         val isDoubleTap = (now - lastTapTime < 320) && (hypot((x - lastTapX).toDouble(), (y - lastTapY).toDouble()) < UiUtils.dp(context, 80))
 
@@ -239,8 +239,23 @@ class PlayerGestureController(
             pendingSingleTap = null
             lastTapTime = 0L
 
-            callback.onTogglePlay()
-            hudController.showQuickFeedback(if (player.isPlaying) "Ⅱ" else "▶")
+            val isTopQuarter = y <= (screenHeight * 0.25f)
+            val isLeftThird = x <= (screenWidth * 0.35f)
+            val isRightThird = x >= (screenWidth * 0.65f)
+
+            if (isTopQuarter && isLeftThird) {
+                // Top-left corner double-tap: Seek backward 5s
+                callback.onSeekBy(-5_000L, false)
+                hudController.showQuickFeedback("⟲ 5s")
+            } else if (isTopQuarter && isRightThird) {
+                // Top-right corner double-tap: Seek forward 5s
+                callback.onSeekBy(5_000L, true)
+                hudController.showQuickFeedback("5s ⟳")
+            } else {
+                // Center / general double-tap: Toggle Play / Pause
+                callback.onTogglePlay()
+                hudController.showQuickFeedback(if (player.isPlaying) "Ⅱ" else "▶")
+            }
         } else {
             lastTapTime = now
             lastTapX = x

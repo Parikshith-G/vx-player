@@ -61,11 +61,9 @@ class PlayerQuickButtonsManager(
 
     val allQuickButtons = listOf(
         "speed" to "Playback Speed",
-        "skip80" to "Skip 90s (Anime OP)",
         "orientation" to "Orientation Lock",
         "aspect" to "Fit / Aspect Ratio",
         "playlist" to "In-Player Playlist",
-        "btdoubletap" to "Bluetooth Double Tap",
         "delete" to "Delete Video (4 Taps)",
         "audio" to "Audio Tracks",
         "subtitle" to "Subtitles",
@@ -78,7 +76,6 @@ class PlayerQuickButtonsManager(
     private var aspectCircularBtn: TextView? = null
     private var orientationCircularBtn: TextView? = null
     private var deleteCircularBtn: TextView? = null
-    private var btDoubleTapCircularBtn: TextView? = null
 
     private var deleteTapCount = 0
     private val deleteResetRunnable = Runnable { resetDeleteTaps() }
@@ -88,7 +85,7 @@ class PlayerQuickButtonsManager(
         quickButtonsLayout.removeAllViews()
 
         val savedKeys = settingsPrefs.getStringSet("top_quick_buttons", null)
-            ?: setOf("speed", "skip80", "orientation", "aspect", "playlist", "btdoubletap", "delete")
+            ?: setOf("speed", "orientation", "aspect", "playlist", "delete")
 
         fun quickBtn(text: String, onClick: () -> Unit) = TextView(activity).apply {
             this.text = text
@@ -114,7 +111,6 @@ class PlayerQuickButtonsManager(
                         speedCircularBtn = btn
                         quickButtonsLayout.addView(btn)
                     }
-                    "skip80" -> quickButtonsLayout.addView(quickBtn("90s OP") { callbacks.onSkip80Clicked() })
                     "orientation" -> {
                         val btn = quickBtn(callbacks.getOrientationLabel()) { callbacks.onOrientationClicked() }
                         orientationCircularBtn = btn
@@ -127,17 +123,6 @@ class PlayerQuickButtonsManager(
                     }
                     "playlist" -> {
                         val btn = quickBtn("List") { callbacks.onPlaylistClicked() }
-                        quickButtonsLayout.addView(btn)
-                    }
-                    "btdoubletap" -> {
-                        val enabled = callbacks.isBtDoubleTapEnabled()
-                        val btn = quickBtn(if (enabled) "BT 2×: ON" else "BT 2×: OFF") {
-                            val next = callbacks.onToggleBtDoubleTap()
-                            btDoubleTapCircularBtn?.text = if (next) "BT 2×: ON" else "BT 2×: OFF"
-                            btDoubleTapCircularBtn?.setTextColor(if (next) 0xff00e676.toInt() else Color.WHITE)
-                        }
-                        btDoubleTapCircularBtn = btn
-                        if (enabled) btn.setTextColor(0xff00e676.toInt())
                         quickButtonsLayout.addView(btn)
                     }
                     "delete" -> {
@@ -162,9 +147,6 @@ class PlayerQuickButtonsManager(
         orientationCircularBtn?.text = callbacks.getOrientationLabel()
         aspectCircularBtn?.text = callbacks.getAspectLabel()
         decoderCircularBtn?.text = if (callbacks.isSoftwareDecoder()) "SW" else "HW"
-        val btOn = callbacks.isBtDoubleTapEnabled()
-        btDoubleTapCircularBtn?.text = if (btOn) "BT 2×: ON" else "BT 2×: OFF"
-        btDoubleTapCircularBtn?.setTextColor(if (btOn) 0xff00e676.toInt() else Color.WHITE)
     }
 
     private fun handleDeleteButtonTap() {

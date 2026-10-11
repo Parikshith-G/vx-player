@@ -24,6 +24,7 @@ object PlayerMenuHelper {
         fun onToggleBackgroundPlay(): Boolean
         fun onVideoInfoDialog()
         fun onEnterPip()
+        fun onFeatureTour()
         fun onRestoreSettings()
         fun onToggleBtDoubleTap(): Boolean = false
         fun isBtDoubleTapEnabled(): Boolean = false
@@ -40,9 +41,9 @@ object PlayerMenuHelper {
             "HW / SW Decoder",
             "Sleep Timer",
             "Background Play: ${if (isBgPlayEnabled) "On" else "Off"}",
-            "Bluetooth Double Tap: ${if (callback.isBtDoubleTapEnabled()) "On" else "Off"}",
             "Video Information",
             "Picture-in-Picture",
+            "ⓘ Feature & Controls Guide",
             "💾 Backup & Restore (Survives Uninstall)"
         )
         AlertDialog.Builder(activity)
@@ -58,9 +59,9 @@ object PlayerMenuHelper {
                     6 -> callback.onToggleDecoder()
                     7 -> callback.onSleepTimerDialog()
                     8 -> callback.onToggleBackgroundPlay()
-                    9 -> callback.onToggleBtDoubleTap()
-                    10 -> callback.onVideoInfoDialog()
-                    11 -> callback.onEnterPip()
+                    9 -> callback.onVideoInfoDialog()
+                    10 -> callback.onEnterPip()
+                    11 -> callback.onFeatureTour()
                     12 -> showBackupRestoreDialog(activity) { callback.onRestoreSettings() }
                 }
             }

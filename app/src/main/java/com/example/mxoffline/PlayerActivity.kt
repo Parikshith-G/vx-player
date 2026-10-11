@@ -198,6 +198,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     private fun setupListeners() {
         ui.backButton.setOnClickListener { finish() }
+        ui.titleView.setOnClickListener { onVideoInfoDialog() }
+        ui.helpButton.setOnClickListener {
+            com.example.mxoffline.player.dialog.PlayerFeatureTourHelper(this, ui).showTour()
+        }
         ui.menuButton.setOnClickListener { PlayerMenuHelper.showHamburgerMenu(this, backgroundPlayEnabled, this) }
         ui.topTimeStatusView.setOnClickListener { s.header.cycleTopTimeMode(s.hud) }
         ui.lockBtn.setOnClickListener { s.controlsLock.lockScreen() }; ui.lockFloatingBtn.setOnClickListener { s.controlsLock.unlockScreen() }
@@ -391,7 +395,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         if (res.isEmpty) { player.stop(); player.clearMediaItems(); finish() } else { player.removeMediaItem(res.removedIndex); player.seekTo(res.nextIndex, 0L); player.play(); onPlaylistIndexChanged() }
     }
     override fun onSkip80Clicked() = skipForward90s()
-    private fun skipForward90s() { seekBy(90_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
+    private fun skipForward90s() { seekBy(80_000L); s.hud.showQuickFeedback("⏭ +90s (OP Skipped)"); s.controlsLock.scheduleHideControls() }
 
     override fun onToggleBtDoubleTap(): Boolean {
         val next = !isBtDoubleTapEnabled()
@@ -423,5 +427,6 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onToggleBackgroundPlay(): Boolean { backgroundPlayEnabled = !backgroundPlayEnabled; settingsPrefs.edit().putBoolean("bg_play", backgroundPlayEnabled).apply(); s.hud.showQuickFeedback("Background Play: ${if (backgroundPlayEnabled) "On" else "Off"}"); return backgroundPlayEnabled }
     override fun onVideoInfoDialog() = s.dialogs?.showVideoInfoDialog(s.playlist.getCurrentName(), preferSoftwareDecoder) ?: Unit
     override fun onEnterPip() = if (::player.isInitialized) s.pip.enterPip(player, ui.playerView, { ui.overlayContainer.visibility = View.GONE; s.header.setVisible(false); ui.lockFloatingBtn.visibility = View.GONE }, { ui.overlayContainer.visibility = View.VISIBLE; s.header.setVisible(true) }) else Unit
+    override fun onFeatureTour() = com.example.mxoffline.player.dialog.PlayerFeatureTourHelper(this, ui).showTour()
     override fun onRestoreSettings() { if (::player.isInitialized) { s.screen.syncFromPreferences(this, player, ui.playerView); s.header.syncFromPreferences(); s.timeline.syncFromPreferences(); s.quickButtons.renderButtons(); onPlaylistIndexChanged() } }
 }

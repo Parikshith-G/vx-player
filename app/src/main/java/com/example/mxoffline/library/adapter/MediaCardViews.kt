@@ -83,7 +83,7 @@ class MediaCardViews(
                 textSize = 14f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(0xfff0f1f4.toInt())
-                maxLines = 1
+                maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
             }
             val subtitle = TextView(ctx).apply {

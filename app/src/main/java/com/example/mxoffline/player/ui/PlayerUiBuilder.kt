@@ -36,6 +36,7 @@ class PlayerUiViews(
     val restartBtn: TextView,
     val titleView: TextView,
     val backButton: TextView,
+    val helpButton: TextView,
     val menuButton: TextView,
     val quickButtonsLayout: LinearLayout,
     val timeView: TextView,
@@ -193,11 +194,18 @@ object PlayerUiBuilder {
         val topTitleRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val backButton = TextView(activity).apply { text = "‹"; textSize = 28f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
         val titleView = TextView(activity).apply {
-            textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(dp(12), 0, dp(12), 0)
+            textSize = 16f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
+            marqueeRepeatLimit = -1
+            isSelected = true
+            isSingleLine = true
+            setPadding(dp(12), 0, dp(12), 0)
         }
+        val helpButton = TextView(activity).apply { text = "ⓘ"; textSize = 20f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
         val menuButton = TextView(activity).apply { text = "☰"; textSize = 22f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
         topTitleRow.addView(backButton, LinearLayout.LayoutParams(dp(44), dp(44)))
         topTitleRow.addView(titleView, LinearLayout.LayoutParams(0, -2, 1f))
+        topTitleRow.addView(helpButton, LinearLayout.LayoutParams(dp(40), dp(44)))
         topTitleRow.addView(menuButton, LinearLayout.LayoutParams(dp(44), dp(44)))
         topBar.addView(topTitleRow)
 
@@ -267,7 +275,7 @@ object PlayerUiBuilder {
         return PlayerUiViews(
             root, playerView, overlayContainer, persistentStatusHeader, topTimeStatusView,
             batteryText, clockText, lockFloatingBtn, resumeBanner, resumeText, restartBtn,
-            titleView, backButton, menuButton, quickButtonsLayout, timeView, remainingTimeView, skipOpBtn,
+            titleView, backButton, helpButton, menuButton, quickButtonsLayout, timeView, remainingTimeView, skipOpBtn,
             seekBar, lockBtn, seekBack5Btn, prevBtn, playPauseBtn, nextBtn, markDoneBtn, seekFwd5Btn, pipBtn,
             seekHud, seekIcon, seekTimeText, seekDeltaText, seekProgressBar,
             brightnessHud, brightnessText, brightnessBar, volumeHud, volumeIcon, volumeText, volumeBar,
