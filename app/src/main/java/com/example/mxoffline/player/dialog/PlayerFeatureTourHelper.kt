@@ -74,7 +74,7 @@ class PlayerFeatureTourHelper(
         ),
         TourStep(
             title = "Skip Anime Opening (+90s OP)",
-            targetName = "+90s OP Button (Bottom Right)",
+            targetName = "+90s OP Button (Bottom Left, above timeline)",
             description = "Instantly skips 90s opening intros (80s seek duration) with one tap.",
             targetViewProvider = { it.skipOpBtn }
         ),
