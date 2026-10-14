@@ -51,6 +51,9 @@ A powerful, native Android video player focused entirely on local and offline pl
   - **Vertical Left Swipe**: Real-time smooth brightness control (0% to 100%) with visual HUD indicator. Top 35dp edge exclusion prevents accidental adjustments when pulling down the system notification shade.
   - **Vertical Right Swipe & Volume Boost**: Real-time volume control from 0% to 100% plus **200% Volume Boost** using Android's `LoudnessEnhancer`.
   - **Hold to Boost & Scrub (0.25× – 8.0×)**: Long-press anywhere on the video accelerates playback to 2.0× speed (or remembered custom speed); slide horizontally while holding to adjust speed linearly from 0.25× up to 8.0×; release to restore.
+  - **Two-Finger Subtitle Gestures**:
+    - **Move Subtitles**: Swipe vertically with two fingers up or down to adjust subtitle position on screen.
+    - **Resize Subtitles**: Pinch or spread with two fingers to increase or decrease subtitle font size.
   - **Single Tap**: Toggle immersive playback controls overlay (auto-hides after 4.5s of inactivity).
   - **Screen Lock (Touch Lock with Auto-Hiding Unlock Icon)**: Tapping Lock locks the screen and displays the floating unlock icon briefly (3s) before auto-hiding for completely unobstructed playback. Tapping the screen while locked brings the unlock button back for 3s.
 - **Bluetooth & AVRCP MediaSession**:
@@ -60,7 +63,11 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Hardware (HW) & Software (SW) Decoder**: Switch between hardware-accelerated playback and software decoding.
 - **Multi-Track Audio**: Switch between audio tracks (languages/channels) and toggle mute.
 - **Embedded & External Subtitles**: Load embedded subtitle tracks or open external subtitle files (`.srt`, `.vtt`, `.ass`, `.ssa`).
-- **Subtitle Styling**: Change subtitle text size (Small, Normal, Large, Huge).
+- **Subtitle Styling & Positioning**:
+  - **Move Subtitles Vertically**: Freely position subtitles from 0% (bottom edge) up to 80% (top of screen) using two-finger vertical swipe or slider & stepper buttons in the Subtitle dialog.
+  - **Custom Font Size**: Scale subtitle text smoothly from 10sp up to 50sp using two-finger pinch-to-zoom or slider & stepper buttons.
+  - **MX Player Subtitle Appearance**: Pure white text with high-contrast black outline, bold sans-serif font, transparent background, and safe bottom padding.
+  - **Live Preview & Persistence**: Real-time preview card in the configuration dialog; all subtitle position and size settings persist across app restarts and videos.
 
 ### ⚙️ Playback Features
 - **Smart Resume**: Automatically prompts and resumes partially watched videos with a floating bottom pill (`Resumed from 03:45 [Restart]`).

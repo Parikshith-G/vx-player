@@ -19,6 +19,7 @@ object PlayerMenuHelper {
         fun onCycleOrientation()
         fun onAudioTrackDialog()
         fun onSubtitleDialog()
+        fun onSubtitleStyleDialog() {}
         fun onToggleDecoder()
         fun onSleepTimerDialog()
         fun onToggleBackgroundPlay(): Boolean
@@ -38,6 +39,7 @@ object PlayerMenuHelper {
             "Screen Orientation",
             "Audio Tracks",
             "Subtitles",
+            "🔤 Subtitle Size & Position",
             "HW / SW Decoder",
             "Sleep Timer",
             "Background Play: ${if (isBgPlayEnabled) "On" else "Off"}",
@@ -56,13 +58,14 @@ object PlayerMenuHelper {
                     3 -> callback.onCycleOrientation()
                     4 -> callback.onAudioTrackDialog()
                     5 -> callback.onSubtitleDialog()
-                    6 -> callback.onToggleDecoder()
-                    7 -> callback.onSleepTimerDialog()
-                    8 -> callback.onToggleBackgroundPlay()
-                    9 -> callback.onVideoInfoDialog()
-                    10 -> callback.onEnterPip()
-                    11 -> callback.onFeatureTour()
-                    12 -> showBackupRestoreDialog(activity) { callback.onRestoreSettings() }
+                    6 -> callback.onSubtitleStyleDialog()
+                    7 -> callback.onToggleDecoder()
+                    8 -> callback.onSleepTimerDialog()
+                    9 -> callback.onToggleBackgroundPlay()
+                    10 -> callback.onVideoInfoDialog()
+                    11 -> callback.onEnterPip()
+                    12 -> callback.onFeatureTour()
+                    13 -> showBackupRestoreDialog(activity) { callback.onRestoreSettings() }
                 }
             }
             .show()

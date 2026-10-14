@@ -56,6 +56,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     private var isMuted = false; private var preferSoftwareDecoder = false
     private var backgroundPlayEnabled = false; private var subtitleFontSizeSp = 18f; private var currentPlaybackSpeed = 1.0f
+    private var subtitleBottomPaddingFraction = 0.08f
     private var sleepTimerAtEndOfVideo = false
     private var mediaSessionManager: com.example.mxoffline.player.playback.PlayerMediaSessionManager? = null
     private var tourHelper: com.example.mxoffline.player.dialog.PlayerFeatureTourHelper? = null
@@ -134,6 +135,8 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         preferSoftwareDecoder = com.example.mxoffline.util.PreferenceHelper.safeGetBoolean(settingsPrefs, "sw_decoder", false)
         currentPlaybackSpeed = com.example.mxoffline.util.PreferenceHelper.safeGetFloat(settingsPrefs, "playback_speed", 1.0f)
         backgroundPlayEnabled = com.example.mxoffline.util.PreferenceHelper.safeGetBoolean(settingsPrefs, "bg_play", false)
+        subtitleFontSizeSp = com.example.mxoffline.util.PreferenceHelper.safeGetFloat(settingsPrefs, "subtitle_font_size", 18f)
+        subtitleBottomPaddingFraction = com.example.mxoffline.util.PreferenceHelper.safeGetFloat(settingsPrefs, "subtitle_bottom_padding", 0.08f)
 
         s = PlayerSubsystems.create(
             this, ui, handler, settingsPrefs, resumePrefs, seenPrefs, uris, names, index, sizes, deleteLauncher, this,
@@ -301,6 +304,29 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onTouchEvent(ev: MotionEvent): Boolean = s.gesture?.handleTouchEvent(ev) == true || super.onTouchEvent(ev)
     override fun onApplyAudioBoost(boost: Int) = s.audioBoost.applyBoost(boost, player)
 
+    override fun onAdjustSubtitlePosition(deltaFraction: Float) {
+        val newPadding = (subtitleBottomPaddingFraction + deltaFraction).coerceIn(0.0f, 0.80f)
+        applyMxSubtitleStyle(subtitleFontSizeSp, newPadding)
+        val percent = (newPadding * 100).toInt()
+        val label = when {
+            percent <= 10 -> "Bottom ($percent%)"
+            percent <= 25 -> "Low ($percent%)"
+            percent <= 50 -> "Middle ($percent%)"
+            else -> "Top ($percent%)"
+        }
+        s.hud.showQuickFeedback("Sub Position: $label")
+    }
+
+    override fun onAdjustSubtitleSize(deltaSp: Float) {
+        val newSize = (subtitleFontSizeSp + deltaSp).coerceIn(10f, 50f)
+        applyMxSubtitleStyle(newSize, subtitleBottomPaddingFraction)
+        s.hud.showQuickFeedback("Sub Size: ${newSize.toInt()}sp")
+    }
+
+    override fun onSubtitleGestureEnded() {
+        persistSubtitleSettings()
+    }
+
     private fun togglePlay() {
         if (!::player.isInitialized) return
         if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) { player.seekTo(0L); player.prepare(); player.play(); return }
@@ -339,12 +365,41 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onAspectClicked() { s.screen.cycleAspectRatio(this, ui.playerView, s.hud); s.quickButtons.updateDynamicLabels() }
     override fun onPlaylistClicked() = if (::player.isInitialized) s.playlist.showPlaylistDialog(player) else Unit
     override fun onAudioClicked() = s.dialogs?.showAudioTrackDialog(isMuted) { isMuted = !isMuted; if (::player.isInitialized) player.volume = if (isMuted) 0f else 1f; s.hud.showQuickFeedback(if (isMuted) "Muted" else "Unmuted") } ?: Unit
-    override fun onSubtitleClicked() = s.dialogs?.showSubtitleDialog(subtitleFontSizeSp, { subtitlePicker.launch(arrayOf("*/*")) }) { fs ->
-        subtitleFontSizeSp = fs
-        applyMxSubtitleStyle(fs)
-    } ?: Unit
+    override fun onSubtitleClicked() = s.dialogs?.showSubtitleDialog(
+        currentFontSizeSp = subtitleFontSizeSp,
+        currentBottomPaddingFraction = subtitleBottomPaddingFraction,
+        onExternalSubtitleClicked = { subtitlePicker.launch(arrayOf("*/*")) },
+        onSubtitleStyleChanged = { fs, bp ->
+            applyMxSubtitleStyle(fs, bp)
+            persistSubtitleSettings()
+        },
+        onResetToDefaults = {
+            applyMxSubtitleStyle(18f, 0.08f)
+            persistSubtitleSettings()
+            s.hud.showQuickFeedback("Subtitles: reset to default")
+        }
+    ) ?: Unit
 
-    private fun applyMxSubtitleStyle(fontSizeSp: Float = subtitleFontSizeSp) {
+    override fun onSubtitleStyleDialog() = s.dialogs?.showSubtitleStyleDialog(
+        currentFontSizeSp = subtitleFontSizeSp,
+        currentBottomPaddingFraction = subtitleBottomPaddingFraction,
+        onSubtitleStyleChanged = { fs, bp ->
+            applyMxSubtitleStyle(fs, bp)
+            persistSubtitleSettings()
+        },
+        onResetToDefaults = {
+            applyMxSubtitleStyle(18f, 0.08f)
+            persistSubtitleSettings()
+            s.hud.showQuickFeedback("Subtitles: reset to default")
+        }
+    ) ?: Unit
+
+    private fun applyMxSubtitleStyle(
+        fontSizeSp: Float = subtitleFontSizeSp,
+        bottomPaddingFraction: Float = subtitleBottomPaddingFraction
+    ) {
+        subtitleFontSizeSp = fontSizeSp
+        subtitleBottomPaddingFraction = bottomPaddingFraction
         ui.playerView.subtitleView?.apply {
             setApplyEmbeddedStyles(false)
             setStyle(
@@ -358,8 +413,16 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
                 )
             )
             setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
-            setBottomPaddingFraction(0.08f)
+            setBottomPaddingFraction(bottomPaddingFraction)
         }
+    }
+
+    private fun persistSubtitleSettings() {
+        settingsPrefs.edit()
+            .putFloat("subtitle_font_size", subtitleFontSizeSp)
+            .putFloat("subtitle_bottom_padding", subtitleBottomPaddingFraction)
+            .apply()
+        AppBackupManager.backupToStorageAsync(this)
     }
     override fun onDecoderClicked() {
         preferSoftwareDecoder = !preferSoftwareDecoder

@@ -24,6 +24,9 @@ interface PlayerGestureCallback {
     fun onSeekBy(deltaMs: Long, isForward: Boolean)
     fun onTogglePlay()
     fun onApplyAudioBoost(boostPercent: Int)
+    fun onAdjustSubtitlePosition(deltaFraction: Float) {}
+    fun onAdjustSubtitleSize(deltaSp: Float) {}
+    fun onSubtitleGestureEnded() {}
 }
 
 class PlayerGestureController(
@@ -41,6 +44,7 @@ class PlayerGestureController(
         private const val GESTURE_BRIGHTNESS = 2
         private const val GESTURE_VOLUME = 3
         private const val GESTURE_HOLD_BOOST = 4
+        private const val GESTURE_TWO_FINGER = 5
     }
 
     private var gestureStartX = 0f
@@ -63,6 +67,13 @@ class PlayerGestureController(
         .getFloat("hold_speed", 2.0f).coerceIn(0.25f, 8.0f)
     private var pendingSingleTap: Runnable? = null
     private val touchSlop = (ViewConfiguration.get(context).scaledTouchSlop / 2).coerceAtLeast(8)
+
+    private var twoFingerActive = false
+    private var twoFingerMode = 0 // 0 = NONE, 1 = SWIPE_Y (move), 2 = PINCH (size)
+    private var twoFingerStartMidY = 0f
+    private var twoFingerLastMidY = 0f
+    private var twoFingerStartDistance = 0f
+    private var twoFingerLastDistance = 0f
 
     private val resetSeekRunnable = Runnable {
         inDoubleTapSeek = false
@@ -108,7 +119,42 @@ class PlayerGestureController(
         val screenWidth = context.resources.displayMetrics.widthPixels.toFloat()
         val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
 
-        when (event.action) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2) {
+                    handler.removeCallbacks(holdBoostRunnable)
+                    pendingSingleTap?.let { handler.removeCallbacks(it) }
+                    pendingSingleTap = null
+                    if (gestureMode == GESTURE_HOLD_BOOST) {
+                        player.playbackParameters = PlaybackParameters(originalSpeedBeforeBoost, 1.0f)
+                        hudController.hideSpeed()
+                        if (!wasPlayingBeforeBoost) player.pause()
+                    }
+                    gestureMode = GESTURE_TWO_FINGER
+                    twoFingerActive = true
+                    twoFingerMode = 0
+                    twoFingerStartMidY = (event.getY(0) + event.getY(1)) / 2f
+                    twoFingerLastMidY = twoFingerStartMidY
+                    val dx = (event.getX(0) - event.getX(1)).toDouble()
+                    val dy = (event.getY(0) - event.getY(1)).toDouble()
+                    twoFingerStartDistance = hypot(dx, dy).toFloat().coerceAtLeast(10f)
+                    twoFingerLastDistance = twoFingerStartDistance
+                    return true
+                }
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (twoFingerActive) {
+                    if (twoFingerMode != 0) {
+                        callback.onSubtitleGestureEnded()
+                    }
+                    twoFingerActive = false
+                    twoFingerMode = 0
+                    gestureMode = GESTURE_SWIPE_IGNORED
+                    return true
+                }
+            }
+
             MotionEvent.ACTION_DOWN -> {
                 handler.removeCallbacks(holdBoostRunnable)
                 val now = System.currentTimeMillis()
@@ -131,6 +177,42 @@ class PlayerGestureController(
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (twoFingerActive && event.pointerCount >= 2) {
+                    val curMidY = (event.getY(0) + event.getY(1)) / 2f
+                    val dx = (event.getX(0) - event.getX(1)).toDouble()
+                    val dy = (event.getY(0) - event.getY(1)).toDouble()
+                    val curDist = hypot(dx, dy).toFloat()
+                    val totalDy = curMidY - twoFingerStartMidY
+                    val totalDistChange = curDist - twoFingerStartDistance
+
+                    if (twoFingerMode == 0) {
+                        if (abs(totalDistChange) > UiUtils.dp(context, 16) && abs(totalDistChange) > abs(totalDy)) {
+                            twoFingerMode = 2 // PINCH: Resize
+                            twoFingerLastDistance = curDist
+                        } else if (abs(totalDy) > UiUtils.dp(context, 10)) {
+                            twoFingerMode = 1 // SWIPE_Y: Move
+                            twoFingerLastMidY = curMidY
+                        }
+                    }
+
+                    when (twoFingerMode) {
+                        1 -> {
+                            val stepDy = curMidY - twoFingerLastMidY
+                            val deltaFraction = -stepDy / (screenHeight * 0.7f)
+                            callback.onAdjustSubtitlePosition(deltaFraction)
+                            twoFingerLastMidY = curMidY
+                        }
+                        2 -> {
+                            val stepDist = curDist - twoFingerLastDistance
+                            val stepPx = UiUtils.dp(context, 15).toFloat().coerceAtLeast(1f)
+                            val deltaSp = (stepDist / stepPx) * 1.5f
+                            callback.onAdjustSubtitleSize(deltaSp)
+                            twoFingerLastDistance = curDist
+                        }
+                    }
+                    return true
+                }
+
                 val dx = event.x - gestureStartX
                 val dy = event.y - gestureStartY
                 val dist = hypot(dx.toDouble(), dy.toDouble()).toFloat()
@@ -212,6 +294,16 @@ class PlayerGestureController(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(holdBoostRunnable)
 
+                if (twoFingerActive) {
+                    if (twoFingerMode != 0) {
+                        callback.onSubtitleGestureEnded()
+                    }
+                    twoFingerActive = false
+                    twoFingerMode = 0
+                    gestureMode = GESTURE_NONE
+                    return true
+                }
+
                 when (gestureMode) {
                     GESTURE_HOLD_BOOST -> {
                         rememberedHoldSpeed = currentHoldSpeed
@@ -237,6 +329,10 @@ class PlayerGestureController(
 
                     GESTURE_NONE -> {
                         handleTapOrDoubleTap(event.x, event.y, screenWidth, screenHeight)
+                    }
+
+                    GESTURE_SWIPE_IGNORED, GESTURE_TWO_FINGER -> {
+                        // Multi-touch or ignored swipe ended; do not trigger taps
                     }
                 }
                 gestureMode = GESTURE_NONE

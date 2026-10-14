@@ -99,6 +99,13 @@ class PlayerFeatureTourHelper(
             zoneLabel = "⚡ Hold to Boost Speed"
         ),
         TourStep(
+            title = "Subtitle Sizing & Positioning",
+            targetName = "Subtitles (Two-Finger Gestures & Dialog)",
+            description = "Swipe vertically with 2 fingers to move subtitles up or down. Pinch or spread with 2 fingers to resize text. Tap 'Sub' in the top tray or Settings to open the slider dialog.",
+            zoneType = TourHighlightOverlay.HighlightType.ZONE_CENTER_BOOST,
+            zoneLabel = "🔤 2-Finger Swipe (Move) & Pinch (Resize)"
+        ),
+        TourStep(
             title = "Brightness Swipe Control",
             targetName = "Left Screen Half (Vertical Swipe)",
             description = "Swipe vertically on the highlighted left side to adjust screen brightness (0% – 100%).",

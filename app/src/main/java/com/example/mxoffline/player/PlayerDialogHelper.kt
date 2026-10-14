@@ -17,6 +17,7 @@ import androidx.media3.common.C
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.mxoffline.player.dialog.SpeedDialogHelper
+import com.example.mxoffline.player.dialog.SubtitleStyleDialogHelper
 import com.example.mxoffline.util.TimeFormatter
 import com.example.mxoffline.util.UiUtils
 
@@ -72,8 +73,10 @@ class PlayerDialogHelper(
 
     fun showSubtitleDialog(
         currentFontSizeSp: Float,
+        currentBottomPaddingFraction: Float,
         onExternalSubtitleClicked: () -> Unit,
-        onFontSizeChanged: (Float) -> Unit
+        onSubtitleStyleChanged: (fontSizeSp: Float, bottomPaddingFraction: Float) -> Unit,
+        onResetToDefaults: () -> Unit
     ) {
         val tracks = player.currentTracks
         val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
@@ -81,10 +84,20 @@ class PlayerDialogHelper(
         val items = mutableListOf<String>()
         val actions = mutableListOf<() -> Unit>()
 
-        items.add("Load External Subtitle File (.srt, .vtt)")
+        items.add("🔤 Subtitle Size & Position (Move / Resize)")
+        actions.add {
+            showSubtitleStyleDialog(
+                currentFontSizeSp,
+                currentBottomPaddingFraction,
+                onSubtitleStyleChanged,
+                onResetToDefaults
+            )
+        }
+
+        items.add("📂 Load External Subtitle File (.srt, .vtt, .ass)")
         actions.add { onExternalSubtitleClicked() }
 
-        items.add("Disable Subtitles (Off)")
+        items.add("❌ Disable Subtitles (Off)")
         actions.add {
             player.trackSelectionParameters = player.trackSelectionParameters
                 .buildUpon()
@@ -96,7 +109,7 @@ class PlayerDialogHelper(
             for (i in 0 until group.length) {
                 val format = group.getTrackFormat(i)
                 val lang = format.language?.uppercase() ?: "Unknown"
-                val label = format.label ?: "Subtitle ${items.size - 1}"
+                val label = format.label ?: "Subtitle ${items.size - 2}"
                 val isSelected = group.isTrackSelected(i)
                 val indicator = if (isSelected) "✓ " else "   "
 
@@ -112,18 +125,26 @@ class PlayerDialogHelper(
             }
         }
 
-        val fontSizes = listOf(14f, 16f, 18f, 20f, 24f, 28f)
-        for (fs in fontSizes) {
-            val isCurrent = currentFontSizeSp == fs
-            items.add("${if (isCurrent) "✓ " else "   "}Subtitle Size: ${fs.toInt()}sp")
-            actions.add { onFontSizeChanged(fs) }
-        }
-
         AlertDialog.Builder(context)
             .setTitle("Subtitles & Captions")
             .setItems(items.toTypedArray()) { _, which -> actions[which].invoke() }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    fun showSubtitleStyleDialog(
+        currentFontSizeSp: Float,
+        currentBottomPaddingFraction: Float,
+        onSubtitleStyleChanged: (fontSizeSp: Float, bottomPaddingFraction: Float) -> Unit,
+        onResetToDefaults: () -> Unit
+    ) {
+        SubtitleStyleDialogHelper.show(
+            context,
+            currentFontSizeSp,
+            currentBottomPaddingFraction,
+            onSubtitleStyleChanged,
+            onResetToDefaults
+        )
     }
 
     fun showSleepTimerDialog(onTimerSet: (Int) -> Unit) {
