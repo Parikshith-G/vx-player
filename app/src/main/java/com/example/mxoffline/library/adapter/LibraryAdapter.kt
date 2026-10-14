@@ -29,7 +29,9 @@ class LibraryAdapter(
     private val onSafClick: (SafEntry) -> Unit,
     private val resumePrefs: SharedPreferences,
     private val onVideoLongClick: ((VideoItem, List<VideoItem>) -> Unit)? = null,
-    private val getSafTreeUri: (() -> android.net.Uri?)? = null
+    private val getSafTreeUri: (() -> android.net.Uri?)? = null,
+    private val onRecentVideoClick: ((VideoItem) -> Unit)? = null,
+    private val onRecentVideoLongClick: ((VideoItem) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -86,33 +88,21 @@ class LibraryAdapter(
                     setPadding(dp(4), dp(10), dp(4), dp(6))
                     layoutParams = RecyclerView.LayoutParams(-1, -2)
                 }
-
                 val title = TextView(ctx).apply {
-                    textSize = 12f
-                    letterSpacing = 0.08f
-                    typeface = Typeface.DEFAULT_BOLD
+                    textSize = 12f; letterSpacing = 0.08f; typeface = Typeface.DEFAULT_BOLD
                     setTextColor(UiUtils.COLOR_ACCENT_BLUE)
                 }
                 row.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
-
                 val secondaryBtn = TextView(ctx).apply {
-                    textSize = 12f
-                    typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(0xff9ea4b2.toInt())
-                    setPadding(dp(8), dp(4), dp(8), dp(4))
-                    visibility = View.GONE
+                    textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(0xff9ea4b2.toInt())
+                    setPadding(dp(8), dp(4), dp(8), dp(4)); visibility = View.GONE
                 }
                 row.addView(secondaryBtn)
-
                 val actionBtn = TextView(ctx).apply {
-                    textSize = 12f
-                    typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(UiUtils.COLOR_ACCENT_BLUE)
-                    setPadding(dp(8), dp(4), dp(8), dp(4))
-                    visibility = View.GONE
+                    textSize = 12f; typeface = Typeface.DEFAULT_BOLD; setTextColor(UiUtils.COLOR_ACCENT_BLUE)
+                    setPadding(dp(8), dp(4), dp(8), dp(4)); visibility = View.GONE
                 }
                 row.addView(actionBtn)
-
                 HeaderHolder(row, title, secondaryBtn, actionBtn)
             }
 
@@ -123,7 +113,7 @@ class LibraryAdapter(
                     setPadding(dp(2), 0, dp(2), dp(8))
                     layoutParams = RecyclerView.LayoutParams(-1, -2)
                 }
-                RecentCarouselHolder(hRecycler, onVideoClick, resumePrefs)
+                RecentCarouselHolder(hRecycler, onVideoClick, resumePrefs, onRecentVideoClick, onRecentVideoLongClick)
             }
 
             VIEW_TYPE_VIDEO -> VideoHolder(MediaCardViews.create(ctx))

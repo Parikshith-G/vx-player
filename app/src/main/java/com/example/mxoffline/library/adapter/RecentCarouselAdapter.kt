@@ -24,17 +24,21 @@ import com.example.mxoffline.util.UiUtils
 class RecentCarouselHolder(
     val recyclerView: RecyclerView,
     private val onVideoClick: (VideoItem, List<VideoItem>) -> Unit,
-    private val resumePrefs: SharedPreferences
+    private val resumePrefs: SharedPreferences,
+    private val onRecentVideoClick: ((VideoItem) -> Unit)? = null,
+    private val onRecentVideoLongClick: ((VideoItem) -> Unit)? = null
 ) : RecyclerView.ViewHolder(recyclerView) {
     fun bind(videos: List<VideoItem>) {
-        recyclerView.adapter = RecentThumbAdapter(videos, onVideoClick, resumePrefs)
+        recyclerView.adapter = RecentThumbAdapter(videos, onVideoClick, resumePrefs, onRecentVideoClick, onRecentVideoLongClick)
     }
 }
 
 class RecentThumbAdapter(
     private val videos: List<VideoItem>,
     private val onVideoClick: (VideoItem, List<VideoItem>) -> Unit,
-    private val resumePrefs: SharedPreferences
+    private val resumePrefs: SharedPreferences,
+    private val onRecentVideoClick: ((VideoItem) -> Unit)? = null,
+    private val onRecentVideoLongClick: ((VideoItem) -> Unit)? = null
 ) : RecyclerView.Adapter<RecentThumbHolder>() {
 
     override fun getItemCount(): Int = videos.size
@@ -100,7 +104,19 @@ class RecentThumbAdapter(
             holder.progressBar.visibility = View.GONE
         }
 
-        holder.itemView.setOnClickListener { onVideoClick(video, videos) }
+        holder.itemView.setOnClickListener {
+            if (onRecentVideoClick != null) {
+                onRecentVideoClick.invoke(video)
+            } else {
+                onVideoClick(video, videos)
+            }
+        }
+        if (onRecentVideoLongClick != null) {
+            holder.itemView.setOnLongClickListener {
+                onRecentVideoLongClick.invoke(video)
+                true
+            }
+        }
     }
 }
 

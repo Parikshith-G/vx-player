@@ -203,4 +203,14 @@ class LibraryBatchActionManager(
         Toast.makeText(activity, "Delete cancelled", Toast.LENGTH_SHORT).show()
         pendingBatchDeleteVideos = emptyList()
     }
+
+    fun toggleSeenStatus(video: VideoItem, currentlySeen: Boolean, onDone: () -> Unit) {
+        val editor = seenPrefs.edit()
+        val keys = com.example.mxoffline.util.VideoIdentity.getAllKeys("seen", video)
+        if (currentlySeen) keys.forEach { editor.remove(it) } else { val now = System.currentTimeMillis(); keys.forEach { editor.putLong(it, now) } }
+        editor.apply()
+        AppBackupManager.backupToStorageAsync(activity)
+        onDone()
+        Toast.makeText(activity, if (currentlySeen) "Marked as Unseen" else "Marked as Seen", Toast.LENGTH_SHORT).show()
+    }
 }
