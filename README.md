@@ -15,7 +15,7 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Horizontal Recently Played Carousel**: Recently watched videos are presented as a clean horizontal scrolling carousel at the top of the Folders tab, showcasing video thumbnails with watch progress indicators and duration badges. Seamlessly tracks videos opened from device storage, SAF folders, and external file pickers.
 - **Asynchronous Thumbnail Cache**: Dual-layer LRU memory cache and background generator with strict view-tag binding to eliminate recycling race conditions during fast scrolling.
 - **Duration & Resolution Badges**: Displays duration (`04:15`) on thumbnails and resolution indicators (4K, 1080p, 720p).
-- **Playback Progress Tracking & MX-Style Title Highlighting**: Visual progress bars under thumbnails showing watched percentage; the video currently being watched or last played in any folder has its title font color highlighted in signature **MX Player Blue** (`#0099FF`), making it instantly identifiable among unplayed files.
+- **Playback Progress Tracking & Active Title Highlighting**: Visual progress bars under thumbnails showing watched percentage; the video currently being watched or last played in any folder has its title font color highlighted in signature **Accent Blue** (`#0099FF`), making it instantly identifiable among unplayed files.
 - **Broad Format Support**: Plays `.mp4`, `.mkv`, `.webm`, `.avi`, `.mov`, `.3gp`, `.m4v`, `.ts`, `.flv`, `.wmv`, `.vob`, `.ogv`, `.mpg`, and more.
 - **SAF & File Picker**: Grant folder access via system picker (Storage Access Framework) or pick individual videos.
 - **Real-Time Search & Natural Sorting**: Search by video/folder name; sort by Name (with natural alphanumeric ordering), Date, Size, or Duration.
@@ -66,7 +66,7 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Subtitle Styling & Positioning**:
   - **Move Subtitles Vertically**: Freely position subtitles from 0% (bottom edge) up to 80% (top of screen) using two-finger vertical swipe or slider & stepper buttons in the Subtitle dialog.
   - **Custom Font Size**: Scale subtitle text smoothly from 10sp up to 50sp using two-finger pinch-to-zoom or slider & stepper buttons.
-  - **MX Player Subtitle Appearance**: Pure white text with high-contrast black outline, bold sans-serif font, transparent background, and safe bottom padding.
+  - **Clean Subtitle Appearance**: Pure white text with high-contrast black outline, bold sans-serif font, transparent background, and safe bottom padding.
   - **Live Preview & Persistence**: Real-time preview card in the configuration dialog; all subtitle position and size settings persist across app restarts and videos.
 
 ### ⚙️ Playback Features

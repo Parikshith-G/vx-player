@@ -45,7 +45,7 @@ class TourHighlightOverlay(context: Context) : View(context) {
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 6f
-        color = com.example.mxoffline.util.UiUtils.COLOR_MX_BLUE
+        color = com.example.mxoffline.util.UiUtils.COLOR_ACCENT_BLUE
     }
 
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

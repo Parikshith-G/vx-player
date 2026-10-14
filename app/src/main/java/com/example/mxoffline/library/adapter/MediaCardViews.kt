@@ -56,13 +56,13 @@ class MediaCardViews(
             }
             val progressBar = ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
                 max = 1000
-                progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
+                progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
                 visibility = View.GONE
             }
             val folderIconText = TextView(ctx).apply {
                 textSize = 20f
                 gravity = Gravity.CENTER
-                setTextColor(UiUtils.COLOR_MX_BLUE)
+                setTextColor(UiUtils.COLOR_ACCENT_BLUE)
                 visibility = View.GONE
             }
 

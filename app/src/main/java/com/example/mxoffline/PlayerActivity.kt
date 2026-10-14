@@ -96,7 +96,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             }
             player.setMediaItems(newItems, currentIdx, currentPos)
             player.playWhenReady = currentPlayWhenReady
-            applyMxSubtitleStyle()
+            applySubtitleStyle()
             s.hud.showQuickFeedback("External subtitle loaded")
         }.onFailure { Toast.makeText(this, "Failed to load subtitle", Toast.LENGTH_SHORT).show() }
     }
@@ -182,7 +182,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             .setAudioAttributes(audioAttributes, true)
             .build()
         player = p; ui.playerView.player = p
-        applyMxSubtitleStyle()
+        applySubtitleStyle()
         s.initPlayerBoundControllers(this, window, handler, p, audioManager, this)
         p.addListener(PlayerEventListener(p, this))
         mediaSessionManager?.release()
@@ -306,7 +306,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     override fun onAdjustSubtitlePosition(deltaFraction: Float) {
         val newPadding = (subtitleBottomPaddingFraction + deltaFraction).coerceIn(0.0f, 0.80f)
-        applyMxSubtitleStyle(subtitleFontSizeSp, newPadding)
+        applySubtitleStyle(subtitleFontSizeSp, newPadding)
         val percent = (newPadding * 100).toInt()
         val label = when {
             percent <= 10 -> "Bottom ($percent%)"
@@ -319,7 +319,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
 
     override fun onAdjustSubtitleSize(deltaSp: Float) {
         val newSize = (subtitleFontSizeSp + deltaSp).coerceIn(10f, 50f)
-        applyMxSubtitleStyle(newSize, subtitleBottomPaddingFraction)
+        applySubtitleStyle(newSize, subtitleBottomPaddingFraction)
         s.hud.showQuickFeedback("Sub Size: ${newSize.toInt()}sp")
     }
 
@@ -370,11 +370,11 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         currentBottomPaddingFraction = subtitleBottomPaddingFraction,
         onExternalSubtitleClicked = { subtitlePicker.launch(arrayOf("*/*")) },
         onSubtitleStyleChanged = { fs, bp ->
-            applyMxSubtitleStyle(fs, bp)
+            applySubtitleStyle(fs, bp)
             persistSubtitleSettings()
         },
         onResetToDefaults = {
-            applyMxSubtitleStyle(18f, 0.08f)
+            applySubtitleStyle(18f, 0.08f)
             persistSubtitleSettings()
             s.hud.showQuickFeedback("Subtitles: reset to default")
         }
@@ -384,17 +384,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         currentFontSizeSp = subtitleFontSizeSp,
         currentBottomPaddingFraction = subtitleBottomPaddingFraction,
         onSubtitleStyleChanged = { fs, bp ->
-            applyMxSubtitleStyle(fs, bp)
+            applySubtitleStyle(fs, bp)
             persistSubtitleSettings()
         },
         onResetToDefaults = {
-            applyMxSubtitleStyle(18f, 0.08f)
+            applySubtitleStyle(18f, 0.08f)
             persistSubtitleSettings()
             s.hud.showQuickFeedback("Subtitles: reset to default")
         }
     ) ?: Unit
 
-    private fun applyMxSubtitleStyle(
+    private fun applySubtitleStyle(
         fontSizeSp: Float = subtitleFontSizeSp,
         bottomPaddingFraction: Float = subtitleBottomPaddingFraction
     ) {

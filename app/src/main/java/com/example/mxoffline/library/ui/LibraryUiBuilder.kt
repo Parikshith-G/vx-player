@@ -38,7 +38,7 @@ class LibraryUiViews(
     val tabSeen: TextView
 ) {
     fun updateTabStyles(currentTab: Int, context: android.content.Context) {
-        val activeColor = UiUtils.COLOR_MX_BLUE
+        val activeColor = UiUtils.COLOR_ACCENT_BLUE
         val inactiveColor = 0xff7d8392.toInt()
         val activeBg = UiUtils.rounded(0xff222530.toInt(), 10, context)
 
@@ -104,7 +104,7 @@ object LibraryUiBuilder {
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            background = UiUtils.rounded(UiUtils.COLOR_MX_BLUE, 13, activity)
+            background = UiUtils.rounded(UiUtils.COLOR_ACCENT_BLUE, 13, activity)
         }
         header.addView(logoBadge, LinearLayout.LayoutParams(dp(44), dp(44)))
 
@@ -180,7 +180,7 @@ object LibraryUiBuilder {
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            background = UiUtils.rounded(UiUtils.COLOR_MX_BLUE, 10, activity)
+            background = UiUtils.rounded(UiUtils.COLOR_ACCENT_BLUE, 10, activity)
             setPadding(dp(14), dp(6), dp(14), dp(6))
             setOnClickListener { callback.onGrantPermissionClicked() }
         }
@@ -221,7 +221,7 @@ object LibraryUiBuilder {
             text = "‹"
             textSize = 28f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(UiUtils.COLOR_MX_BLUE)
+            setTextColor(UiUtils.COLOR_ACCENT_BLUE)
             gravity = Gravity.CENTER
             setPadding(0, 0, dp(10), 0)
             setOnClickListener { callback.onBackPressed() }

@@ -40,7 +40,7 @@ object SpeedDialogHelper {
             textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setTextColor(UiUtils.COLOR_MX_BLUE)
+            setTextColor(UiUtils.COLOR_ACCENT_BLUE)
             setPadding(0, 0, 0, dp(14))
         }
         dialogView.addView(speedValueText)
@@ -67,8 +67,8 @@ object SpeedDialogHelper {
         val speedSeekBar = SeekBar(context).apply {
             max = totalSteps
             progress = speedToProgress(player.playbackParameters.speed)
-            progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
-            thumbTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
+            progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
+            thumbTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
         }
 
         fun applySpeed(s: Float) {
@@ -141,7 +141,7 @@ object SpeedDialogHelper {
                 gravity = Gravity.CENTER
                 setTextColor(if (abs(player.playbackParameters.speed - preset) < 0.05f) Color.WHITE else Color.WHITE)
                 background = UiUtils.rounded(
-                    if (abs(player.playbackParameters.speed - preset) < 0.05f) UiUtils.COLOR_MX_BLUE else 0xff252934.toInt(),
+                    if (abs(player.playbackParameters.speed - preset) < 0.05f) UiUtils.COLOR_ACCENT_BLUE else 0xff252934.toInt(),
                     10, context
                 )
                 setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -162,7 +162,7 @@ object SpeedDialogHelper {
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setTextColor(UiUtils.COLOR_MX_BLUE)
+            setTextColor(UiUtils.COLOR_ACCENT_BLUE)
             background = UiUtils.rounded(0xff1f232d.toInt(), 10, context)
             setPadding(dp(16), dp(8), dp(16), dp(8))
             setOnClickListener { applySpeed(1.0f) }

@@ -91,7 +91,7 @@ class LibraryAdapter(
                     textSize = 12f
                     letterSpacing = 0.08f
                     typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(UiUtils.COLOR_MX_BLUE)
+                    setTextColor(UiUtils.COLOR_ACCENT_BLUE)
                 }
                 row.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
 
@@ -107,7 +107,7 @@ class LibraryAdapter(
                 val actionBtn = TextView(ctx).apply {
                     textSize = 12f
                     typeface = Typeface.DEFAULT_BOLD
-                    setTextColor(UiUtils.COLOR_MX_BLUE)
+                    setTextColor(UiUtils.COLOR_ACCENT_BLUE)
                     setPadding(dp(8), dp(4), dp(8), dp(4))
                     visibility = View.GONE
                 }
@@ -156,7 +156,7 @@ class LibraryAdapter(
                     if (header.actionText.contains("Delete", ignoreCase = true)) {
                         holder.actionBtn.setTextColor(0xffff5252.toInt())
                     } else {
-                        holder.actionBtn.setTextColor(UiUtils.COLOR_MX_BLUE)
+                        holder.actionBtn.setTextColor(UiUtils.COLOR_ACCENT_BLUE)
                     }
                     holder.actionBtn.setOnClickListener { header.onActionClick.invoke() }
                 } else {
@@ -207,7 +207,7 @@ class LibraryAdapter(
                 val isWatching = savedPos > 3000L
 
                 if (isLastWatched || isWatching) {
-                    holder.views.title.setTextColor(UiUtils.COLOR_MX_BLUE)
+                    holder.views.title.setTextColor(UiUtils.COLOR_ACCENT_BLUE)
                 } else {
                     holder.views.title.setTextColor(0xfff0f1f4.toInt())
                 }
@@ -284,7 +284,7 @@ class LibraryAdapter(
                     val isWatching = savedPos > 3000L
 
                     if (isLastWatched || isWatching) {
-                        holder.views.title.setTextColor(UiUtils.COLOR_MX_BLUE)
+                        holder.views.title.setTextColor(UiUtils.COLOR_ACCENT_BLUE)
                     } else {
                         holder.views.title.setTextColor(0xfff0f1f4.toInt())
                     }

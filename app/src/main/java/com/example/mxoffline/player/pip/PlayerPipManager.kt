@@ -1,7 +1,7 @@
 /**
  * Role: Picture-in-Picture lifecycle and remote control coordinator.
  * Responsibility: Manages PiP parameters, source bounds, system broadcast receiver, and exit listeners.
- * Details: Implements MX Player style aspect clamping, auto-enter on Android 12+, and halts audio on window close.
+ * Details: Implements dynamic aspect clamping, auto-enter on Android 12+, and halts audio on window close.
  */
 package com.example.mxoffline.player.pip
 

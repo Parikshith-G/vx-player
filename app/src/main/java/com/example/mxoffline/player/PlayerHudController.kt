@@ -70,7 +70,7 @@ class PlayerHudController(
         if (isBoost) {
             volumeIcon.text = "🚀"
             volumeText.text = "$percent% BOOST"
-            volumeText.setTextColor(UiUtils.COLOR_MX_BLUE)
+            volumeText.setTextColor(UiUtils.COLOR_ACCENT_BLUE)
             volumeBar.progress = percent
             volumeBar.progressTintList = ColorStateList.valueOf(0xffff5500.toInt())
         } else {
@@ -78,7 +78,7 @@ class PlayerHudController(
             volumeText.text = "$percent%"
             volumeText.setTextColor(Color.WHITE)
             volumeBar.progress = percent
-            volumeBar.progressTintList = ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
+            volumeBar.progressTintList = ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
         }
         volumeHud.visibility = View.VISIBLE
     }

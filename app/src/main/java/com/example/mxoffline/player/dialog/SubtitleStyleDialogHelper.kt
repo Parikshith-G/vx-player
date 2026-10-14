@@ -89,7 +89,7 @@ object SubtitleStyleDialogHelper {
             text = "${activeFontSize.toInt()} sp"
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(UiUtils.COLOR_MX_BLUE)
+            setTextColor(UiUtils.COLOR_ACCENT_BLUE)
         }
         sizeHeaderRow.addView(sizeTitle)
         sizeHeaderRow.addView(sizeValueText)
@@ -103,8 +103,8 @@ object SubtitleStyleDialogHelper {
         val sizeSeekBar = SeekBar(context).apply {
             max = sizeSteps
             progress = (activeFontSize - minFontSize).toInt().coerceIn(0, sizeSteps)
-            progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
-            thumbTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
+            progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
+            thumbTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
                 leftMargin = dp(6)
                 rightMargin = dp(6)
@@ -174,7 +174,7 @@ object SubtitleStyleDialogHelper {
                 gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
                 background = UiUtils.rounded(
-                    if (abs(activeFontSize - preset) < 0.5f) UiUtils.COLOR_MX_BLUE else 0xff252934.toInt(),
+                    if (abs(activeFontSize - preset) < 0.5f) UiUtils.COLOR_ACCENT_BLUE else 0xff252934.toInt(),
                     8, context
                 )
                 setPadding(dp(10), dp(6), dp(10), dp(6))
@@ -214,7 +214,7 @@ object SubtitleStyleDialogHelper {
             text = formatPositionLabel(activePaddingFraction)
             textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(UiUtils.COLOR_MX_BLUE)
+            setTextColor(UiUtils.COLOR_ACCENT_BLUE)
         }
         positionHeaderRow.addView(positionTitle)
         positionHeaderRow.addView(positionValueText)
@@ -228,8 +228,8 @@ object SubtitleStyleDialogHelper {
         val positionSeekBar = SeekBar(context).apply {
             max = 80 // 0% to 80% bottom padding
             progress = (activePaddingFraction * 100).toInt().coerceIn(0, 80)
-            progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
-            thumbTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
+            progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
+            thumbTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
                 leftMargin = dp(6)
                 rightMargin = dp(6)
@@ -304,7 +304,7 @@ object SubtitleStyleDialogHelper {
                 gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
                 background = UiUtils.rounded(
-                    if (abs(activePaddingFraction - presetVal) < 0.02f) UiUtils.COLOR_MX_BLUE else 0xff252934.toInt(),
+                    if (abs(activePaddingFraction - presetVal) < 0.02f) UiUtils.COLOR_ACCENT_BLUE else 0xff252934.toInt(),
                     8, context
                 )
                 setPadding(dp(10), dp(6), dp(10), dp(6))
@@ -326,7 +326,7 @@ object SubtitleStyleDialogHelper {
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setTextColor(UiUtils.COLOR_MX_BLUE)
+            setTextColor(UiUtils.COLOR_ACCENT_BLUE)
             background = UiUtils.rounded(0xff1f232d.toInt(), 10, context)
             setPadding(dp(16), dp(8), dp(16), dp(8))
             setOnClickListener {
