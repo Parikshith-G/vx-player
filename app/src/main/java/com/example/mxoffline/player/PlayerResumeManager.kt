@@ -68,6 +68,9 @@ class PlayerResumeManager(
         if (name.isNotBlank() || size > 0L) {
             editor.putString("recent_meta_$uri", "$name|$size")
         }
+        editor.putString("last_watched_uri", uri)
+        if (name.isNotBlank()) editor.putString("last_watched_name", name)
+        editor.putLong("last_watched_time", now)
         editor.apply()
     }
 
@@ -82,6 +85,9 @@ class PlayerResumeManager(
         if (name.isNotBlank() || size > 0L) {
             editor.putString("recent_meta_$uri", "$name|$size")
         }
+        editor.putString("last_watched_uri", uri)
+        if (name.isNotBlank()) editor.putString("last_watched_name", name)
+        editor.putLong("last_watched_time", now)
 
         if (player.duration > 0) {
             val pos = player.currentPosition

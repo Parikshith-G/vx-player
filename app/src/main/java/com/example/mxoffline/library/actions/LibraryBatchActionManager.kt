@@ -42,7 +42,7 @@ class LibraryBatchActionManager(
             .setPositiveButton("Clear") { _, _ ->
                 val editor = resumePrefs.edit()
                 for (key in resumePrefs.all.keys) {
-                    if (key.startsWith("pos_") || key.startsWith("recent_time_") || key.startsWith("recent_meta_")) {
+                    if (key.startsWith("pos_") || key.startsWith("recent_time_") || key.startsWith("recent_meta_") || key.startsWith("last_watched_")) {
                         editor.remove(key)
                     }
                 }

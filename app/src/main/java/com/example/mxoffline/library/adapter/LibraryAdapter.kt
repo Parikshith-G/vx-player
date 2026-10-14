@@ -197,6 +197,21 @@ class LibraryAdapter(
                     holder.views.progressBar.visibility = View.GONE
                 }
 
+                val recentTime = com.example.mxoffline.util.VideoIdentity.getAllKeys("recent_time", video).maxOfOrNull { com.example.mxoffline.util.PreferenceHelper.safeGetLong(resumePrefs, it, 0L) } ?: 0L
+                val lastWatchedUri = resumePrefs.getString("last_watched_uri", null)
+                val lastWatchedName = resumePrefs.getString("last_watched_name", null)
+                val lastWatchedTime = resumePrefs.getLong("last_watched_time", 0L)
+
+                val isLastWatched = (lastWatchedUri != null && (video.uri.toString() == lastWatchedUri || (lastWatchedName != null && lastWatchedName.isNotBlank() && video.name == lastWatchedName))) ||
+                        (lastWatchedTime > 0L && recentTime == lastWatchedTime)
+                val isWatching = savedPos > 3000L
+
+                if (isLastWatched || isWatching) {
+                    holder.views.title.setTextColor(UiUtils.COLOR_MX_BLUE)
+                } else {
+                    holder.views.title.setTextColor(0xfff0f1f4.toInt())
+                }
+
                 holder.itemView.setOnClickListener { onVideoClick(video, videoItem.playlist) }
                 holder.itemView.setOnLongClickListener { onVideoLongClick?.invoke(video, videoItem.playlist); true }
             }
@@ -204,6 +219,7 @@ class LibraryAdapter(
             is FolderHolder -> {
                 val folder = (item as LibraryListItem.Folder).item
                 holder.views.title.text = folder.name
+                holder.views.title.setTextColor(0xfff0f1f4.toInt())
                 holder.views.subtitle.text = "${folder.videoCount} videos"
                 holder.views.duration.visibility = View.GONE
                 holder.views.progressBar.visibility = View.GONE
@@ -228,6 +244,7 @@ class LibraryAdapter(
                 holder.views.progressBar.visibility = View.GONE
 
                 if (entry.isDirectory) {
+                    holder.views.title.setTextColor(0xfff0f1f4.toInt())
                     holder.views.thumb.visibility = View.GONE
                     holder.views.folderIcon.text = "DIR"
                     holder.views.folderIcon.visibility = View.VISIBLE
@@ -237,11 +254,39 @@ class LibraryAdapter(
                     holder.views.thumb.visibility = View.VISIBLE
                     holder.views.subtitle.text = FileSizeFormatter.formatSize(entry.sizeBytes)
                     val tree = getSafTreeUri?.invoke()
-                    if (tree != null) {
-                        val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, entry.documentId)
+                    val docUri = if (tree != null) android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, entry.documentId) else null
+                    if (docUri != null) {
                         ThumbnailLoader.load(ctx, docUri, 0L, holder.views.thumb)
                     } else {
                         holder.views.thumb.setImageDrawable(null)
+                    }
+
+                    val uriStr = docUri?.toString().orEmpty()
+                    val entrySize = entry.sizeBytes ?: 0L
+                    val savedPos = if (uriStr.isNotBlank()) {
+                        com.example.mxoffline.util.VideoIdentity.getAllKeysForVideo("pos", uriStr, entry.name, entrySize).maxOfOrNull {
+                            com.example.mxoffline.util.PreferenceHelper.safeGetLong(resumePrefs, it, 0L)
+                        } ?: 0L
+                    } else 0L
+
+                    val recentTime = if (uriStr.isNotBlank()) {
+                        com.example.mxoffline.util.VideoIdentity.getAllKeysForVideo("recent_time", uriStr, entry.name, entrySize).maxOfOrNull {
+                            com.example.mxoffline.util.PreferenceHelper.safeGetLong(resumePrefs, it, 0L)
+                        } ?: 0L
+                    } else 0L
+
+                    val lastWatchedUri = resumePrefs.getString("last_watched_uri", null)
+                    val lastWatchedName = resumePrefs.getString("last_watched_name", null)
+                    val lastWatchedTime = resumePrefs.getLong("last_watched_time", 0L)
+
+                    val isLastWatched = (lastWatchedUri != null && (uriStr == lastWatchedUri || (lastWatchedName != null && lastWatchedName.isNotBlank() && entry.name == lastWatchedName))) ||
+                            (lastWatchedTime > 0L && recentTime == lastWatchedTime)
+                    val isWatching = savedPos > 3000L
+
+                    if (isLastWatched || isWatching) {
+                        holder.views.title.setTextColor(UiUtils.COLOR_MX_BLUE)
+                    } else {
+                        holder.views.title.setTextColor(0xfff0f1f4.toInt())
                     }
                 }
 

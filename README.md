@@ -15,7 +15,7 @@ A powerful, native Android video player focused entirely on local and offline pl
 - **Horizontal Recently Played Carousel**: Recently watched videos are presented as a clean horizontal scrolling carousel at the top of the Folders tab, showcasing video thumbnails with watch progress indicators and duration badges. Seamlessly tracks videos opened from device storage, SAF folders, and external file pickers.
 - **Asynchronous Thumbnail Cache**: Dual-layer LRU memory cache and background generator with strict view-tag binding to eliminate recycling race conditions during fast scrolling.
 - **Duration & Resolution Badges**: Displays duration (`04:15`) on thumbnails and resolution indicators (4K, 1080p, 720p).
-- **Playback Progress Tracking**: Visual progress bars under thumbnails showing watched percentage.
+- **Playback Progress Tracking & MX-Style Title Highlighting**: Visual progress bars under thumbnails showing watched percentage; the video currently being watched or last played in any folder has its title font color highlighted in signature **MX Player Blue** (`#0099FF`), making it instantly identifiable among unplayed files.
 - **Broad Format Support**: Plays `.mp4`, `.mkv`, `.webm`, `.avi`, `.mov`, `.3gp`, `.m4v`, `.ts`, `.flv`, `.wmv`, `.vob`, `.ogv`, `.mpg`, and more.
 - **SAF & File Picker**: Grant folder access via system picker (Storage Access Framework) or pick individual videos.
 - **Real-Time Search & Natural Sorting**: Search by video/folder name; sort by Name (with natural alphanumeric ordering), Date, Size, or Duration.
