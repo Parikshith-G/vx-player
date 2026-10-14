@@ -13,6 +13,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import com.example.mxoffline.util.TimeFormatter
+import com.example.mxoffline.util.UiUtils
 import java.util.Locale
 import kotlin.math.abs
 
@@ -69,7 +70,7 @@ class PlayerHudController(
         if (isBoost) {
             volumeIcon.text = "🚀"
             volumeText.text = "$percent% BOOST"
-            volumeText.setTextColor(0xffffc400.toInt())
+            volumeText.setTextColor(UiUtils.COLOR_MX_BLUE)
             volumeBar.progress = percent
             volumeBar.progressTintList = ColorStateList.valueOf(0xffff5500.toInt())
         } else {
@@ -77,7 +78,7 @@ class PlayerHudController(
             volumeText.text = "$percent%"
             volumeText.setTextColor(Color.WHITE)
             volumeBar.progress = percent
-            volumeBar.progressTintList = ColorStateList.valueOf(0xffffc400.toInt())
+            volumeBar.progressTintList = ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
         }
         volumeHud.visibility = View.VISIBLE
     }

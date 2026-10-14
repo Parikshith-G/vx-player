@@ -9,6 +9,8 @@ import android.content.Context
 import android.graphics.drawable.GradientDrawable
 
 object UiUtils {
+    const val COLOR_MX_BLUE = 0xff0099ff.toInt()
+
     fun dp(context: Context, value: Int): Int {
         return (value * context.resources.displayMetrics.density).toInt()
     }

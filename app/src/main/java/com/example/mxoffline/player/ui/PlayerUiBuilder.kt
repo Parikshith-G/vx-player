@@ -83,11 +83,11 @@ object PlayerUiBuilder {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(22), dp(14), dp(22), dp(14))
             background = UiUtils.rounded(0xcc101217.toInt(), 20, activity); visibility = View.GONE
         }
-        val seekIcon = TextView(activity).apply { text = "⏩"; textSize = 28f; gravity = Gravity.CENTER; setTextColor(0xffffc400.toInt()) }
+        val seekIcon = TextView(activity).apply { text = "⏩"; textSize = 28f; gravity = Gravity.CENTER; setTextColor(UiUtils.COLOR_MX_BLUE) }
         val seekTimeText = TextView(activity).apply { textSize = 24f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
-        val seekDeltaText = TextView(activity).apply { textSize = 14f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(0xffffc400.toInt()) }
+        val seekDeltaText = TextView(activity).apply { textSize = 14f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(UiUtils.COLOR_MX_BLUE) }
         val seekProgressBar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 1000; progressTintList = ColorStateList.valueOf(0xffffc400.toInt())
+            max = 1000; progressTintList = ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
         }
         seekHud.addView(seekIcon); seekHud.addView(seekTimeText); seekHud.addView(seekDeltaText)
         seekHud.addView(seekProgressBar, LinearLayout.LayoutParams(dp(140), dp(6)).apply { topMargin = dp(8) })
@@ -100,7 +100,7 @@ object PlayerUiBuilder {
         }
         val brightnessText = TextView(activity).apply { text = "100%"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
         val brightnessBar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 100; progress = 100; progressTintList = ColorStateList.valueOf(0xffffc400.toInt())
+            max = 100; progress = 100; progressTintList = ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
         }
         brightnessHud.addView(TextView(activity).apply { text = "☀"; textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.WHITE) })
         brightnessHud.addView(brightnessText)
@@ -115,7 +115,7 @@ object PlayerUiBuilder {
         val volumeIcon = TextView(activity).apply { text = "🔊"; textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
         val volumeText = TextView(activity).apply { text = "100%"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
         val volumeBar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 200; progress = 100; progressTintList = ColorStateList.valueOf(0xffffc400.toInt())
+            max = 200; progress = 100; progressTintList = ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
         }
         volumeHud.addView(volumeIcon); volumeHud.addView(volumeText)
         volumeHud.addView(volumeBar, LinearLayout.LayoutParams(dp(70), dp(6)))
@@ -128,7 +128,7 @@ object PlayerUiBuilder {
         root.addView(quickFeedbackHud, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
 
         val centerSpeedHud = TextView(activity).apply {
-            textSize = 16f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(0xffffc400.toInt())
+            textSize = 16f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(UiUtils.COLOR_MX_BLUE)
             background = UiUtils.rounded(0xdd12151c.toInt(), 16, activity); setPadding(dp(18), dp(8), dp(18), dp(8)); visibility = View.GONE
         }
         root.addView(centerSpeedHud, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(28) })
@@ -152,7 +152,7 @@ object PlayerUiBuilder {
         }
         val resumeText = TextView(activity).apply { text = "Resumed from 00:00"; textSize = 13f; setTextColor(0xfff0f1f3.toInt()) }
         val restartBtn = TextView(activity).apply {
-            text = "Restart"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(0xffffc400.toInt()); setPadding(dp(14), 0, 0, 0)
+            text = "Restart"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(UiUtils.COLOR_MX_BLUE); setPadding(dp(14), 0, 0, 0)
         }
         resumeBanner.addView(resumeText); resumeBanner.addView(restartBtn)
         root.addView(resumeBanner, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(110) })
@@ -228,7 +228,7 @@ object PlayerUiBuilder {
         }
         val skipOpBtn = TextView(activity).apply {
             text = "+90s OP"; textSize = 12f; typeface = Typeface.DEFAULT_BOLD
-            setTextColor(0xffffc400.toInt()); background = UiUtils.rounded(0xdd1e222e.toInt(), 14, activity)
+            setTextColor(UiUtils.COLOR_MX_BLUE); background = UiUtils.rounded(0xdd1e222e.toInt(), 14, activity)
             setPadding(dp(12), dp(4), dp(12), dp(4)); gravity = Gravity.CENTER; includeFontPadding = false
         }
         extraRow.addView(skipOpBtn)
@@ -237,7 +237,7 @@ object PlayerUiBuilder {
         val timeRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val timeView = TextView(activity).apply { text = "00:00"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); setPadding(0, 0, dp(8), 0) }
         val seekBar = SeekBar(activity).apply {
-            max = 1000; progressTintList = ColorStateList.valueOf(0xffffc400.toInt()); thumbTintList = ColorStateList.valueOf(0xffffc400.toInt())
+            max = 1000; progressTintList = ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE); thumbTintList = ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
         }
         val remainingTimeView = TextView(activity).apply { text = "00:00"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; setTextColor(0xffbbbec6.toInt()); setPadding(dp(8), 0, 0, 0) }
         timeRow.addView(timeView); timeRow.addView(seekBar, LinearLayout.LayoutParams(0, dp(40), 1f)); timeRow.addView(remainingTimeView)
@@ -252,7 +252,7 @@ object PlayerUiBuilder {
         val lockBtn = actionBtn("🔒")
         val seekBack5Btn = actionBtn("⟲ 5s")
         val prevBtn = actionBtn("⏮")
-        val playPauseBtn = actionBtn("Ⅱ", 20f).apply { setTextColor(0xffffc400.toInt()) }
+        val playPauseBtn = actionBtn("Ⅱ", 20f).apply { setTextColor(UiUtils.COLOR_MX_BLUE) }
         val nextBtn = actionBtn("⏭")
         val markDoneBtn = actionBtn("✔", 20f).apply { setTextColor(0xff00e676.toInt()) }
         val seekFwd5Btn = actionBtn("5s ⟳")

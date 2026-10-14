@@ -49,9 +49,11 @@ class PlayerGestureController(
     private var startBrightness = 0.5f
     private var startNormalizedVolume = 0f
     private var currentBoostPercent = 0
-    private var lastTapTime = 0L
+    private var lastTapUpTime = 0L
     private var lastTapX = 0f
     private var lastTapY = 0f
+    private var inDoubleTapSeek = false
+    private var accumulatedSeekDelta = 0L
     private var originalSpeedBeforeBoost = 1.0f
     private var wasPlayingBeforeBoost = true
     private var holdStartX = 0f
@@ -61,6 +63,12 @@ class PlayerGestureController(
         .getFloat("hold_speed", 2.0f).coerceIn(0.25f, 8.0f)
     private var pendingSingleTap: Runnable? = null
     private val touchSlop = (ViewConfiguration.get(context).scaledTouchSlop / 2).coerceAtLeast(8)
+
+    private val resetSeekRunnable = Runnable {
+        inDoubleTapSeek = false
+        accumulatedSeekDelta = 0L
+        lastTapUpTime = 0L
+    }
 
     private val holdBoostRunnable = Runnable {
         if (gestureMode == GESTURE_NONE && !callback.isLocked()) {
@@ -103,6 +111,13 @@ class PlayerGestureController(
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 handler.removeCallbacks(holdBoostRunnable)
+                val now = System.currentTimeMillis()
+                val isCandidateMultiTap = (now - lastTapUpTime < 380) &&
+                        (hypot((event.x - lastTapX).toDouble(), (event.y - lastTapY).toDouble()) < UiUtils.dp(context, 80))
+                if (isCandidateMultiTap || inDoubleTapSeek) {
+                    pendingSingleTap?.let { handler.removeCallbacks(it) }
+                    pendingSingleTap = null
+                }
                 gestureStartX = event.x
                 gestureStartY = event.y
                 gestureMode = GESTURE_NONE
@@ -232,12 +247,17 @@ class PlayerGestureController(
 
     private fun handleTapOrDoubleTap(x: Float, y: Float, screenWidth: Float, screenHeight: Float) {
         val now = System.currentTimeMillis()
-        val isDoubleTap = (now - lastTapTime < 320) && (hypot((x - lastTapX).toDouble(), (y - lastTapY).toDouble()) < UiUtils.dp(context, 80))
+        val isNearLastTap = hypot((x - lastTapX).toDouble(), (y - lastTapY).toDouble()) < UiUtils.dp(context, 80)
+        val isDoubleTap = (now - lastTapUpTime < 380) && isNearLastTap
 
-        if (isDoubleTap) {
+        if (isDoubleTap || (inDoubleTapSeek && (now - lastTapUpTime < 550) && isNearLastTap)) {
             pendingSingleTap?.let { handler.removeCallbacks(it) }
             pendingSingleTap = null
-            lastTapTime = 0L
+            handler.removeCallbacks(resetSeekRunnable)
+
+            lastTapUpTime = now
+            lastTapX = x
+            lastTapY = y
 
             val isTopQuarter = y <= (screenHeight * 0.25f)
             val isLeftThird = x <= (screenWidth * 0.35f)
@@ -245,24 +265,39 @@ class PlayerGestureController(
 
             if (isTopQuarter && isLeftThird) {
                 // Top-left corner double-tap: Seek backward 5s
+                inDoubleTapSeek = true
+                accumulatedSeekDelta = if (accumulatedSeekDelta < 0) accumulatedSeekDelta - 5_000L else -5_000L
                 callback.onSeekBy(-5_000L, false)
-                hudController.showQuickFeedback("⟲ 5s")
+                val sec = abs(accumulatedSeekDelta) / 1000
+                hudController.showQuickFeedback("⟲ ${sec}s")
+                handler.postDelayed(resetSeekRunnable, 600)
             } else if (isTopQuarter && isRightThird) {
                 // Top-right corner double-tap: Seek forward 5s
+                inDoubleTapSeek = true
+                accumulatedSeekDelta = if (accumulatedSeekDelta > 0) accumulatedSeekDelta + 5_000L else 5_000L
                 callback.onSeekBy(5_000L, true)
-                hudController.showQuickFeedback("5s ⟳")
+                val sec = abs(accumulatedSeekDelta) / 1000
+                hudController.showQuickFeedback("${sec}s ⟳")
+                handler.postDelayed(resetSeekRunnable, 600)
             } else {
                 // Center / general double-tap: Toggle Play / Pause
+                inDoubleTapSeek = false
+                accumulatedSeekDelta = 0L
+                lastTapUpTime = 0L
                 callback.onTogglePlay()
                 hudController.showQuickFeedback(if (player.isPlaying) "Ⅱ" else "▶")
             }
         } else {
-            lastTapTime = now
+            inDoubleTapSeek = false
+            accumulatedSeekDelta = 0L
+            lastTapUpTime = now
             lastTapX = x
             lastTapY = y
             val single = Runnable {
                 pendingSingleTap = null
-                callback.onSingleTap()
+                if (!inDoubleTapSeek) {
+                    callback.onSingleTap()
+                }
             }
             pendingSingleTap = single
             handler.postDelayed(single, 320)

@@ -8,6 +8,7 @@ package com.example.mxoffline
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Typeface
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -30,6 +31,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.CaptionStyleCompat
 import com.example.mxoffline.player.*
 import com.example.mxoffline.player.buttons.PlayerQuickButtonsManager
 import com.example.mxoffline.player.menu.PlayerMenuHelper
@@ -93,6 +95,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             }
             player.setMediaItems(newItems, currentIdx, currentPos)
             player.playWhenReady = currentPlayWhenReady
+            applyMxSubtitleStyle()
             s.hud.showQuickFeedback("External subtitle loaded")
         }.onFailure { Toast.makeText(this, "Failed to load subtitle", Toast.LENGTH_SHORT).show() }
     }
@@ -176,6 +179,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             .setAudioAttributes(audioAttributes, true)
             .build()
         player = p; ui.playerView.player = p
+        applyMxSubtitleStyle()
         s.initPlayerBoundControllers(this, window, handler, p, audioManager, this)
         p.addListener(PlayerEventListener(p, this))
         mediaSessionManager?.release()
@@ -335,7 +339,28 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onAspectClicked() { s.screen.cycleAspectRatio(this, ui.playerView, s.hud); s.quickButtons.updateDynamicLabels() }
     override fun onPlaylistClicked() = if (::player.isInitialized) s.playlist.showPlaylistDialog(player) else Unit
     override fun onAudioClicked() = s.dialogs?.showAudioTrackDialog(isMuted) { isMuted = !isMuted; if (::player.isInitialized) player.volume = if (isMuted) 0f else 1f; s.hud.showQuickFeedback(if (isMuted) "Muted" else "Unmuted") } ?: Unit
-    override fun onSubtitleClicked() = s.dialogs?.showSubtitleDialog(subtitleFontSizeSp, { subtitlePicker.launch(arrayOf("*/*")) }) { fs -> subtitleFontSizeSp = fs; ui.playerView.subtitleView?.setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, fs) } ?: Unit
+    override fun onSubtitleClicked() = s.dialogs?.showSubtitleDialog(subtitleFontSizeSp, { subtitlePicker.launch(arrayOf("*/*")) }) { fs ->
+        subtitleFontSizeSp = fs
+        applyMxSubtitleStyle(fs)
+    } ?: Unit
+
+    private fun applyMxSubtitleStyle(fontSizeSp: Float = subtitleFontSizeSp) {
+        ui.playerView.subtitleView?.apply {
+            setApplyEmbeddedStyles(false)
+            setStyle(
+                CaptionStyleCompat(
+                    Color.WHITE,
+                    Color.TRANSPARENT,
+                    Color.TRANSPARENT,
+                    CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                    Color.BLACK,
+                    Typeface.create("sans-serif", Typeface.BOLD)
+                )
+            )
+            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
+            setBottomPaddingFraction(0.08f)
+        }
+    }
     override fun onDecoderClicked() {
         preferSoftwareDecoder = !preferSoftwareDecoder
         settingsPrefs.edit().putBoolean("sw_decoder", preferSoftwareDecoder).apply()

@@ -229,7 +229,7 @@ class PlayerFeatureTourHelper(
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpF(16f)
                 setColor(0xd8141824.toInt()) // Sleek translucent dark acrylic
-                setStroke(dp(1), 0x55ffc400.toInt()) // Subtle amber stroke
+                setStroke(dp(1), 0x550099ff.toInt()) // Subtle MX blue stroke
             }
             background = cardBg
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -246,12 +246,12 @@ class PlayerFeatureTourHelper(
         val badge = TextView(context).apply {
             textSize = 10.5f
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(0xffffc400.toInt())
+            setTextColor(UiUtils.COLOR_MX_BLUE)
             setPadding(dp(8), dp(3), dp(8), dp(3))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpF(8f)
-                setColor(0x33ffc400.toInt())
+                setColor(0x330099ff.toInt())
             }
         }
         stepBadgeView = badge
@@ -341,7 +341,7 @@ class PlayerFeatureTourHelper(
 
         val nextBtn = Button(context).apply {
             text = "Next ›"
-            styleBtn(this, 0xffffc400.toInt(), Color.BLACK)
+            styleBtn(this, UiUtils.COLOR_MX_BLUE, Color.WHITE)
             setOnClickListener {
                 if (currentStepIndex < steps.size - 1) {
                     goToStep(currentStepIndex + 1)

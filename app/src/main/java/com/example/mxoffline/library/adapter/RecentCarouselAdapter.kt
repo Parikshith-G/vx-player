@@ -66,7 +66,7 @@ class RecentThumbAdapter(
 
         val progressBar = ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000
-            progressTintList = android.content.res.ColorStateList.valueOf(0xffffc400.toInt())
+            progressTintList = android.content.res.ColorStateList.valueOf(UiUtils.COLOR_MX_BLUE)
             visibility = View.GONE
         }
 
