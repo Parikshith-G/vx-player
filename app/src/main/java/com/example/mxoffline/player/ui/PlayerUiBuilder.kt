@@ -102,8 +102,11 @@ object PlayerUiBuilder {
         val brightnessBar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100; progress = 100; progressTintList = ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
         }
-        brightnessHud.addView(TextView(activity).apply { text = "☀"; textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.WHITE) })
-        brightnessHud.addView(brightnessText)
+        val brightnessIcon = TextView(activity).apply {
+            val d = androidx.core.content.ContextCompat.getDrawable(activity, com.example.mxoffline.R.drawable.ic_brightness)?.mutate()?.apply { setBounds(0, 0, dp(20), dp(20)) }
+            setCompoundDrawables(null, d, null, null); gravity = Gravity.CENTER
+        }
+        brightnessHud.addView(brightnessIcon); brightnessHud.addView(brightnessText)
         brightnessHud.addView(brightnessBar, LinearLayout.LayoutParams(dp(70), dp(6)))
         root.addView(brightnessHud, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(28) })
 
@@ -112,7 +115,10 @@ object PlayerUiBuilder {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(12), dp(16), dp(12), dp(16))
             background = UiUtils.rounded(0xbb000000.toInt(), 16, activity); visibility = View.GONE
         }
-        val volumeIcon = TextView(activity).apply { text = "🔊"; textSize = 18f; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
+        val volumeIcon = TextView(activity).apply {
+            val d = androidx.core.content.ContextCompat.getDrawable(activity, com.example.mxoffline.R.drawable.ic_volume_up)?.mutate()?.apply { setBounds(0, 0, dp(20), dp(20)) }
+            setCompoundDrawables(null, d, null, null); gravity = Gravity.CENTER
+        }
         val volumeText = TextView(activity).apply { text = "100%"; textSize = 13f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setTextColor(Color.WHITE) }
         val volumeBar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 200; progress = 100; progressTintList = ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
@@ -249,14 +255,18 @@ object PlayerUiBuilder {
             this.text = text; textSize = sizeSp; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
             setTextColor(Color.WHITE); setSingleLine(true); includeFontPadding = false
         }
+        fun actionIconBtn(res: Int) = TextView(activity).apply {
+            val d = androidx.core.content.ContextCompat.getDrawable(activity, res)?.mutate()?.apply { setBounds(0, 0, dp(24), dp(24)) }
+            setCompoundDrawables(null, d, null, null); gravity = Gravity.CENTER; includeFontPadding = false
+        }
         val lockBtn = actionBtn("🔒")
-        val seekBack5Btn = actionBtn("⟲ 5s")
+        val seekBack5Btn = actionIconBtn(com.example.mxoffline.R.drawable.ic_replay_5)
         val prevBtn = actionBtn("⏮")
         val playPauseBtn = actionBtn("Ⅱ", 20f).apply { setTextColor(UiUtils.COLOR_ACCENT_BLUE) }
         val nextBtn = actionBtn("⏭")
         val markDoneBtn = actionBtn("✔", 20f).apply { setTextColor(0xff00e676.toInt()) }
-        val seekFwd5Btn = actionBtn("5s ⟳")
-        val pipBtn = actionBtn("⧉").apply { if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) visibility = View.GONE }
+        val seekFwd5Btn = actionIconBtn(com.example.mxoffline.R.drawable.ic_forward_5)
+        val pipBtn = actionIconBtn(com.example.mxoffline.R.drawable.ic_pip).apply { if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) visibility = View.GONE }
 
         val actionLp = { LinearLayout.LayoutParams(0, dp(44), 1f) }
         actionsRow.addView(lockBtn, actionLp())

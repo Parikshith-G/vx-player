@@ -46,7 +46,17 @@ class PlayerStatusHeaderManager(
     fun update(player: ExoPlayer?) {
         clockText.text = clockFormat.format(Date())
         val bat = getBatteryPercentage()
+        val isCharging = isBatteryCharging()
         batteryText.text = if (bat >= 0) "$bat%" else ""
+        if (isCharging) {
+            val bolt = androidx.core.content.ContextCompat.getDrawable(context, com.example.mxoffline.R.drawable.ic_electric_bolt)?.mutate()?.apply {
+                val sz = com.example.mxoffline.util.UiUtils.dp(context, 14); setBounds(0, 0, sz, sz)
+            }
+            batteryText.setCompoundDrawables(bolt, null, null, null)
+            batteryText.compoundDrawablePadding = com.example.mxoffline.util.UiUtils.dp(context, 3)
+        } else {
+            batteryText.setCompoundDrawables(null, null, null, null)
+        }
 
         if (player != null) {
             val d = player.duration.coerceAtLeast(0)
@@ -78,5 +88,15 @@ class PlayerStatusHeaderManager(
         val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
         return if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+    }
+
+    private fun isBatteryCharging(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            if (bm?.isCharging == true) return true
+        }
+        val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        return status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
     }
 }

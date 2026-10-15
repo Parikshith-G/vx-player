@@ -68,17 +68,24 @@ class PlayerHudController(
     fun showVolume(percent: Int, isBoost: Boolean) {
         handler.removeCallbacks(hideVolumeRunnable)
         if (isBoost) {
-            volumeIcon.text = "🚀"
-            volumeText.text = "$percent% BOOST"
-            volumeText.setTextColor(UiUtils.COLOR_ACCENT_BLUE)
-            volumeBar.progress = percent
-            volumeBar.progressTintList = ColorStateList.valueOf(0xffff5500.toInt())
+            val d = androidx.core.content.ContextCompat.getDrawable(volumeIcon.context, com.example.mxoffline.R.drawable.ic_volume_up)?.mutate()?.apply {
+                val sz = UiUtils.dp(volumeIcon.context, 20); setBounds(0, 0, sz, sz)
+            }
+            volumeIcon.text = ""; volumeIcon.setCompoundDrawables(null, d, null, null)
+            volumeText.text = "$percent% BOOST"; volumeText.setTextColor(UiUtils.COLOR_ACCENT_BLUE)
+            volumeBar.progress = percent; volumeBar.progressTintList = ColorStateList.valueOf(0xffff5500.toInt())
         } else {
-            volumeIcon.text = if (percent == 0) "🔇" else "🔊"
-            volumeText.text = "$percent%"
-            volumeText.setTextColor(Color.WHITE)
-            volumeBar.progress = percent
-            volumeBar.progressTintList = ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
+            val iconRes = when {
+                percent == 0 -> com.example.mxoffline.R.drawable.ic_volume_mute
+                percent < 50 -> com.example.mxoffline.R.drawable.ic_volume_down
+                else -> com.example.mxoffline.R.drawable.ic_volume_up
+            }
+            val d = androidx.core.content.ContextCompat.getDrawable(volumeIcon.context, iconRes)?.mutate()?.apply {
+                val sz = UiUtils.dp(volumeIcon.context, 20); setBounds(0, 0, sz, sz)
+            }
+            volumeIcon.text = ""; volumeIcon.setCompoundDrawables(null, d, null, null)
+            volumeText.text = "$percent%"; volumeText.setTextColor(Color.WHITE)
+            volumeBar.progress = percent; volumeBar.progressTintList = ColorStateList.valueOf(UiUtils.COLOR_ACCENT_BLUE)
         }
         volumeHud.visibility = View.VISIBLE
     }
