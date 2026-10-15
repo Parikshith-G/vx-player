@@ -68,4 +68,21 @@ object LibraryMenuHelper {
             .setNegativeButton("Cancel", null)
             .show()
     }
+
+    fun showFolderActionDialog(activity: Activity, folder: com.example.mxoffline.model.FolderItem, onPlayAll: () -> Unit) {
+        val options = arrayOf("▶ Play All", "✨ Generate Subtitles (${folder.videos.size} videos)")
+        AlertDialog.Builder(activity)
+            .setTitle(folder.name)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> onPlayAll()
+                    1 -> {
+                        com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startFolderBatch(activity, folder.name, folder.videos)
+                        Toast.makeText(activity, "Subtitle generation started for ${folder.name}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 }

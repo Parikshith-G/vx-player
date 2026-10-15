@@ -132,14 +132,13 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
             { v, l -> showVideoActionDialog(v, l) },
             { navigator.treeUri },
             { v -> playRecentVideo(v) },
-            { v -> showRecentVideoActionDialog(v) }
+            { v -> showRecentVideoActionDialog(v) },
+            { f -> LibraryMenuHelper.showFolderActionDialog(this, f) { PlayerLauncher.start(this, f.videos, 0) } }
         )
         ui.recyclerView.adapter = adapter
         setupBackNavigation(); ui.updateTabStyles(currentTab, this); checkPermissionsAndLoad()
         AppBackupManager.autoRestoreAsync(this) { restored ->
-            if (restored) mainHandler.post {
-                sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0); refreshCurrentDisplay()
-            }
+            if (restored) mainHandler.post { sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0); refreshCurrentDisplay() }
         }
     }
 
@@ -219,11 +218,9 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     override fun onSearchClicked() {
         val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         if (ui.searchInput.visibility == View.VISIBLE) {
-            ui.searchInput.setText(""); ui.searchInput.visibility = View.GONE
-            imm.hideSoftInputFromWindow(ui.searchInput.windowToken, 0)
+            ui.searchInput.setText(""); ui.searchInput.visibility = View.GONE; imm.hideSoftInputFromWindow(ui.searchInput.windowToken, 0)
         } else {
-            ui.searchInput.visibility = View.VISIBLE; ui.searchInput.requestFocus()
-            imm.showSoftInput(ui.searchInput, InputMethodManager.SHOW_IMPLICIT)
+            ui.searchInput.visibility = View.VISIBLE; ui.searchInput.requestFocus(); imm.showSoftInput(ui.searchInput, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
@@ -287,12 +284,13 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
 
     private fun showVideoActionDialog(video: VideoItem, playlist: List<VideoItem>) {
         val isSeen = displayCoordinator.isVideoSeen(video)
-        val options = arrayOf("Play", if (isSeen) "Mark as Unseen" else "Mark as Seen", "Delete Video")
+        val options = arrayOf("Play", "✨ Generate Subtitles", if (isSeen) "Mark as Unseen" else "Mark as Seen", "Delete Video")
         android.app.AlertDialog.Builder(this).setTitle(video.name).setItems(options) { _, which ->
             when (which) {
                 0 -> PlayerLauncher.start(this, playlist, playlist.indexOf(video).coerceAtLeast(0))
-                1 -> actionManager.toggleSeenStatus(video, isSeen) { refreshCurrentDisplay() }
-                2 -> actionManager.promptDeleteSingleVideo(video)
+                1 -> { com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startSingleVideo(this, video); Toast.makeText(this, "Subtitle generation started for ${video.name}", Toast.LENGTH_SHORT).show() }
+                2 -> actionManager.toggleSeenStatus(video, isSeen) { refreshCurrentDisplay() }
+                3 -> actionManager.promptDeleteSingleVideo(video)
             }
         }.setNegativeButton("Cancel", null).show()
     }

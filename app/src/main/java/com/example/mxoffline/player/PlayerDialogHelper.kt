@@ -76,7 +76,8 @@ class PlayerDialogHelper(
         currentBottomPaddingFraction: Float,
         onExternalSubtitleClicked: () -> Unit,
         onSubtitleStyleChanged: (fontSizeSp: Float, bottomPaddingFraction: Float) -> Unit,
-        onResetToDefaults: () -> Unit
+        onResetToDefaults: () -> Unit,
+        onGenerateSubtitlesClicked: (() -> Unit)? = null
     ) {
         val tracks = player.currentTracks
         val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
@@ -96,6 +97,11 @@ class PlayerDialogHelper(
 
         items.add("📂 Load External Subtitle File (.srt, .vtt, .ass)")
         actions.add { onExternalSubtitleClicked() }
+
+        if (onGenerateSubtitlesClicked != null) {
+            items.add("✨ Generate Subtitles (Offline AI)")
+            actions.add { onGenerateSubtitlesClicked() }
+        }
 
         items.add("❌ Disable Subtitles (Off)")
         actions.add {

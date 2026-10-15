@@ -31,7 +31,8 @@ class LibraryAdapter(
     private val onVideoLongClick: ((VideoItem, List<VideoItem>) -> Unit)? = null,
     private val getSafTreeUri: (() -> android.net.Uri?)? = null,
     private val onRecentVideoClick: ((VideoItem) -> Unit)? = null,
-    private val onRecentVideoLongClick: ((VideoItem) -> Unit)? = null
+    private val onRecentVideoLongClick: ((VideoItem) -> Unit)? = null,
+    private val onFolderLongClick: ((FolderItem) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -225,6 +226,7 @@ class LibraryAdapter(
                 }
 
                 holder.itemView.setOnClickListener { onFolderClick(folder) }
+                holder.itemView.setOnLongClickListener { onFolderLongClick?.invoke(folder); true }
             }
 
             is SafHolder -> {

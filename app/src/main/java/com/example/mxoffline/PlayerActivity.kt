@@ -10,6 +10,7 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -196,7 +197,20 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             override fun getCurrentPosition() = if (::player.isInitialized) player.currentPosition else 0L
         }).apply { init() }
         if (s.playlist.uris.isNotEmpty()) {
-            p.setMediaItems(s.playlist.uris.map { MediaItem.fromUri(it) }, s.playlist.index, 0)
+            val items = s.playlist.uris.mapIndexed { idx, u ->
+                val uri = Uri.parse(u)
+                val name = s.playlist.names.getOrNull(idx) ?: "Video"
+                val sub = com.example.mxoffline.subtitles.srt.SubtitleFileLocator.findSubtitleForVideo(this, uri, name)
+                if (sub != null) {
+                    MediaItem.Builder().setUri(uri).setSubtitleConfigurations(listOf(
+                        MediaItem.SubtitleConfiguration.Builder(sub)
+                            .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP)
+                            .setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT)
+                            .build()
+                    )).build()
+                } else MediaItem.fromUri(uri)
+            }
+            p.setMediaItems(items, s.playlist.index, 0)
             p.prepare(); p.playbackParameters = PlaybackParameters(currentPlaybackSpeed, 1.0f); p.playWhenReady = true
         }
         ui.titleView.text = s.playlist.getCurrentName()
@@ -377,6 +391,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
             applySubtitleStyle(18f, 0.08f)
             persistSubtitleSettings()
             s.hud.showQuickFeedback("Subtitles: reset to default")
+        },
+        onGenerateSubtitlesClicked = {
+            val u = s.playlist.getCurrentUri()
+            if (u != null) {
+                val vid = com.example.mxoffline.model.VideoItem(
+                    name = s.playlist.getCurrentName(),
+                    uri = Uri.parse(u),
+                    sizeBytes = s.playlist.getCurrentSize()
+                )
+                com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startSingleVideo(this, vid)
+            }
         }
     ) ?: Unit
 
