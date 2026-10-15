@@ -68,8 +68,11 @@ class PlayerSeenManager(
     fun updateMarkDoneButtonState(button: TextView?, uris: List<String>, index: Int, names: List<String> = emptyList(), sizes: List<Long> = emptyList()) {
         if (button == null) return
         val seen = isCurrentVideoSeen(uris, index, names, sizes)
-        button.setTextColor(0xff00e676.toInt())
-        button.alpha = if (seen) 1.0f else 0.45f
+        val d = androidx.core.content.ContextCompat.getDrawable(context, com.example.mxoffline.R.drawable.ic_check)?.mutate()?.apply {
+            val sz = com.example.mxoffline.util.UiUtils.dp(context, 26); setBounds(0, 0, sz, sz); setTint(0xff00e676.toInt())
+        }
+        button.setCompoundDrawables(null, d, null, null)
+        button.alpha = if (seen) 1.0f else 0.40f
     }
 
     fun markCurrentVideoAsSeen(p: com.example.mxoffline.player.playlist.PlayerPlaylistController) = markCurrentVideoAsSeen(p.uris, p.index, p.names, p.sizes)

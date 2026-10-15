@@ -49,10 +49,16 @@ class SubtitleProgressCard(
             gravity = Gravity.CENTER_VERTICAL
         }
         titleText = TextView(activity).apply {
-            text = "✨ Generating Subtitles (AI)"
+            text = "Generating Subtitles (AI)"
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER_VERTICAL
+            val d = androidx.core.content.ContextCompat.getDrawable(activity, com.example.mxoffline.R.drawable.ic_subtitles)?.mutate()?.apply {
+                val sz = dp(20); setBounds(0, 0, sz, sz); setTint(Color.WHITE)
+            }
+            setCompoundDrawables(d, null, null, null)
+            compoundDrawablePadding = dp(8)
         }
         cancelBtn = TextView(activity).apply {
             text = "Cancel"

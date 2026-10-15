@@ -141,7 +141,10 @@ object PlayerUiBuilder {
 
         // Floating Unlock Button
         val lockFloatingBtn = TextView(activity).apply {
-            text = "🔓"; textSize = 22f; gravity = Gravity.CENTER; includeFontPadding = false
+            val d = androidx.core.content.ContextCompat.getDrawable(activity, com.example.mxoffline.R.drawable.ic_lock_open)?.mutate()?.apply {
+                val sz = dp(24); setBounds(0, 0, sz, sz); setTint(Color.WHITE)
+            }
+            setCompoundDrawables(null, d, null, null); gravity = Gravity.CENTER; includeFontPadding = false
             background = GradientDrawable().apply {
                 setColor(0xee222631.toInt()); cornerRadius = dp(24).toFloat(); setStroke(dp(1), 0x55ffffff.toInt())
             }
@@ -251,20 +254,18 @@ object PlayerUiBuilder {
 
         // Actions Row (Sequence: Lock, 5s Seek Back, Prev, Play/Pause, Next, Mark Done, 5s Seek Fwd, PiP)
         val actionsRow = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        fun actionBtn(text: String, sizeSp: Float = 14f) = TextView(activity).apply {
-            this.text = text; textSize = sizeSp; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER
-            setTextColor(Color.WHITE); setSingleLine(true); includeFontPadding = false
-        }
-        fun actionIconBtn(res: Int) = TextView(activity).apply {
-            val d = androidx.core.content.ContextCompat.getDrawable(activity, res)?.mutate()?.apply { setBounds(0, 0, dp(24), dp(24)) }
+        fun actionIconBtn(res: Int, tint: Int = Color.WHITE, iconSz: Int = 24) = TextView(activity).apply {
+            val d = androidx.core.content.ContextCompat.getDrawable(activity, res)?.mutate()?.apply {
+                val sz = dp(iconSz); setBounds(0, 0, sz, sz); setTint(tint)
+            }
             setCompoundDrawables(null, d, null, null); gravity = Gravity.CENTER; includeFontPadding = false
         }
-        val lockBtn = actionBtn("🔒")
+        val lockBtn = actionIconBtn(com.example.mxoffline.R.drawable.ic_lock)
         val seekBack5Btn = actionIconBtn(com.example.mxoffline.R.drawable.ic_replay_5)
-        val prevBtn = actionBtn("⏮")
-        val playPauseBtn = actionBtn("Ⅱ", 20f).apply { setTextColor(UiUtils.COLOR_ACCENT_BLUE) }
-        val nextBtn = actionBtn("⏭")
-        val markDoneBtn = actionBtn("✔", 20f).apply { setTextColor(0xff00e676.toInt()) }
+        val prevBtn = actionIconBtn(com.example.mxoffline.R.drawable.ic_skip_previous)
+        val playPauseBtn = actionIconBtn(com.example.mxoffline.R.drawable.ic_pause, UiUtils.COLOR_ACCENT_BLUE, 26)
+        val nextBtn = actionIconBtn(com.example.mxoffline.R.drawable.ic_skip_next)
+        val markDoneBtn = actionIconBtn(com.example.mxoffline.R.drawable.ic_check, 0xff00e676.toInt(), 26)
         val seekFwd5Btn = actionIconBtn(com.example.mxoffline.R.drawable.ic_forward_5)
         val pipBtn = actionIconBtn(com.example.mxoffline.R.drawable.ic_pip).apply { if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) visibility = View.GONE }
 

@@ -262,7 +262,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     }
     override fun onEnded() {
         if (!::player.isInitialized) return
-        s.seen.markCurrentVideoAsSeen(s.playlist); ui.playPauseBtn.text = "▶"
+        s.seen.markCurrentVideoAsSeen(s.playlist); updatePlayPauseIcon(false)
         if (sleepTimerAtEndOfVideo) {
             sleepTimerAtEndOfVideo = false
             player.pause()
@@ -277,7 +277,7 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         }
     }
     override fun onPlayingChanged(isPlaying: Boolean) {
-        ui.playPauseBtn.text = if (isPlaying) "Ⅱ" else "▶"
+        updatePlayPauseIcon(isPlaying)
         if (isPlaying) s.controlsLock.scheduleHideControls() else s.controlsLock.cancelHideControls()
         if (::player.isInitialized) {
             s.pip.updatePipParams(player, ui.playerView)
@@ -285,7 +285,17 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
         }
     }
     override fun onError(err: androidx.media3.common.PlaybackException) {
-        ui.playPauseBtn.text = "▶"; s.hud.showQuickFeedback("Playback error"); Toast.makeText(this, "Cannot play: ${s.playlist.getCurrentName()}", Toast.LENGTH_LONG).show()
+        updatePlayPauseIcon(false); s.hud.showQuickFeedback("Playback error"); Toast.makeText(this, "Cannot play: ${s.playlist.getCurrentName()}", Toast.LENGTH_LONG).show()
+    }
+
+    private fun updatePlayPauseIcon(isPlaying: Boolean) {
+        val res = if (isPlaying) com.example.mxoffline.R.drawable.ic_pause else com.example.mxoffline.R.drawable.ic_play_arrow
+        val d = androidx.core.content.ContextCompat.getDrawable(this, res)?.mutate()?.apply {
+            val sz = com.example.mxoffline.util.UiUtils.dp(this@PlayerActivity, 26)
+            setBounds(0, 0, sz, sz)
+            setTint(com.example.mxoffline.util.UiUtils.COLOR_ACCENT_BLUE)
+        }
+        ui.playPauseBtn.setCompoundDrawables(null, d, null, null)
     }
     override fun onVideoSizeChanged(videoSize: VideoSize) {
         if (::player.isInitialized) {
