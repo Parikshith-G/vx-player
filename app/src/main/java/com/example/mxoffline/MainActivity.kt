@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     private val navigator = LibraryFolderNavigator()
     private lateinit var actionManager: LibraryBatchActionManager
     private lateinit var displayCoordinator: LibraryDisplayCoordinator
+    private lateinit var subProgress: com.example.mxoffline.subtitles.ui.SubtitleProgressCard
     private var currentTab = TAB_FOLDERS
     private var allDeviceVideos = listOf<VideoItem>()
     private var deviceFolders = listOf<FolderItem>()
@@ -72,13 +73,8 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
     }
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            ui.permissionBanner.visibility = View.GONE
-            executor.execute { AppBackupManager.autoRestoreIfAvailable(this@MainActivity); mainHandler.post { loadDeviceVideos() } }
-        } else {
-            Toast.makeText(this, "Storage permission is needed to scan local videos", Toast.LENGTH_LONG).show()
-            updatePermissionBanner()
-        }
+        if (granted) { ui.permissionBanner.visibility = View.GONE; executor.execute { AppBackupManager.autoRestoreIfAvailable(this@MainActivity); mainHandler.post { loadDeviceVideos() } } }
+        else { Toast.makeText(this, "Storage permission is needed to scan local videos", Toast.LENGTH_LONG).show(); updatePermissionBanner() }
     }
 
     private val backupExportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -140,8 +136,10 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
         AppBackupManager.autoRestoreAsync(this) { restored ->
             if (restored) mainHandler.post { sortMode = com.example.mxoffline.util.PreferenceHelper.safeGetInt(prefs, "sort_mode", 0); refreshCurrentDisplay() }
         }
+        subProgress = com.example.mxoffline.subtitles.ui.SubtitleProgressCard(this, ui.root).apply { bind() }
     }
 
+    override fun onDestroy() { subProgress.unbind(); super.onDestroy() }
     override fun onPause() { super.onPause(); AppBackupManager.backupToStorageAsync(this) }
     override fun onResume() {
         super.onResume()
