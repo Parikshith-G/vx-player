@@ -400,7 +400,10 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
                     uri = Uri.parse(u),
                     sizeBytes = s.playlist.getCurrentSize()
                 )
-                com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startSingleVideo(this, vid)
+                com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.checkModelOrPrompt(this) {
+                    com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startSingleVideo(this, vid)
+                    s.hud.showQuickFeedback("✨ Generating Subtitles...")
+                }
             }
         }
     ) ?: Unit

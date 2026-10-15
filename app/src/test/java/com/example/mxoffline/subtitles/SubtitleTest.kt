@@ -76,4 +76,14 @@ class SubtitleTest {
         assertTrue(SubtitleModelManager.SUPPORTED_MODEL_NAMES.contains("whisper-base.bin"))
         assertTrue(SubtitleModelManager.SUPPORTED_MODEL_NAMES.contains("ggml-base.bin"))
     }
+
+    @Test
+    fun testModelDownloadUrls() {
+        val baseUrl = com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.WHISPER_BASE_URL
+        val tinyUrl = com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.WHISPER_TINY_URL
+        assertTrue("Base URL should be valid https", baseUrl.startsWith("https://"))
+        assertTrue("Base URL should end with ggml-base.bin", baseUrl.endsWith("ggml-base.bin"))
+        assertTrue("Tiny URL should be valid https", tinyUrl.startsWith("https://"))
+        assertTrue("Tiny URL should end with ggml-tiny.bin", tinyUrl.endsWith("ggml-tiny.bin"))
+    }
 }

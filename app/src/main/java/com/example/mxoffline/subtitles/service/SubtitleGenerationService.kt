@@ -89,6 +89,13 @@ class SubtitleGenerationService : Service() {
 
     private fun startProcessing(videos: List<VideoItem>, folderName: String) {
         executor.execute {
+            if (!com.example.mxoffline.subtitles.engine.SubtitleModelManager.isModelAvailable(this)) {
+                wakeLock?.let { if (it.isHeld) it.release() }
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
+                SubtitleGenerationManager.dispatchCancelled()
+                stopSelf()
+                return@execute
+            }
             var completedCount = 0
             val total = videos.size
 

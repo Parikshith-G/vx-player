@@ -288,7 +288,9 @@ class MainActivity : ComponentActivity(), LibraryUiBuilder.Callback {
         android.app.AlertDialog.Builder(this).setTitle(video.name).setItems(options) { _, which ->
             when (which) {
                 0 -> PlayerLauncher.start(this, playlist, playlist.indexOf(video).coerceAtLeast(0))
-                1 -> { com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startSingleVideo(this, video); Toast.makeText(this, "Subtitle generation started for ${video.name}", Toast.LENGTH_SHORT).show() }
+                1 -> com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.checkModelOrPrompt(this) {
+                    com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startSingleVideo(this, video); Toast.makeText(this, "Subtitle generation started for ${video.name}", Toast.LENGTH_SHORT).show()
+                }
                 2 -> actionManager.toggleSeenStatus(video, isSeen) { refreshCurrentDisplay() }
                 3 -> actionManager.promptDeleteSingleVideo(video)
             }

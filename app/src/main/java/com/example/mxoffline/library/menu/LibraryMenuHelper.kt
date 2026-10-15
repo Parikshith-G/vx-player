@@ -77,8 +77,10 @@ object LibraryMenuHelper {
                 when (which) {
                     0 -> onPlayAll()
                     1 -> {
-                        com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startFolderBatch(activity, folder.name, folder.videos)
-                        Toast.makeText(activity, "Subtitle generation started for ${folder.name}", Toast.LENGTH_SHORT).show()
+                        com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.checkModelOrPrompt(activity) {
+                            com.example.mxoffline.subtitles.manager.SubtitleGenerationManager.startFolderBatch(activity, folder.name, folder.videos)
+                            Toast.makeText(activity, "Subtitle generation started for ${folder.name}", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             }
