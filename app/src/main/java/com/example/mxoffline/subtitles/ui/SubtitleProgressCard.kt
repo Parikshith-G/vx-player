@@ -118,7 +118,46 @@ class SubtitleProgressCard(
         SubtitleGenerationManager.addListener(this)
     }
 
+    private var actualTargetPercent = 0
+    private var visualPercent = 0
+    private var isInterpolating = false
+
+    private val interpolationRunnable = object : Runnable {
+        override fun run() {
+            if (!SubtitleGenerationManager.isRunning) {
+                isInterpolating = false
+                return
+            }
+            if (visualPercent < actualTargetPercent) {
+                visualPercent++
+                applyVisualProgress(visualPercent)
+                mainHandler.postDelayed(this, 120L)
+            } else if (visualPercent < 98) {
+                // Optimistic continuous crawl: gently advance 1% every 3s while waiting for next chunk
+                visualPercent++
+                applyVisualProgress(visualPercent)
+                mainHandler.postDelayed(this, 3000L)
+            } else {
+                mainHandler.postDelayed(this, 1000L)
+            }
+        }
+    }
+
+    private fun startInterpolationIfNeeded() {
+        if (!isInterpolating) {
+            isInterpolating = true
+            mainHandler.post(interpolationRunnable)
+        }
+    }
+
+    private fun applyVisualProgress(percent: Int) {
+        progressBar.progress = percent.coerceIn(0, 100)
+        percentText.text = "$percent%"
+    }
+
     fun unbind() {
+        mainHandler.removeCallbacks(interpolationRunnable)
+        isInterpolating = false
         SubtitleGenerationManager.removeListener(this)
     }
 
@@ -127,18 +166,28 @@ class SubtitleProgressCard(
             cardView.visibility = View.VISIBLE
             val stage = if (progress.currentProgress < 50) "Extracting audio" else "Transcribing speech"
             detailText.text = "${progress.folderName} (${progress.currentIndex + 1}/${progress.totalVideos}) • ${progress.currentVideoName}"
-            progressBar.progress = progress.currentProgress
-            percentText.text = "${progress.currentProgress}%"
             titleText.text = "✨ Generating Subtitles: $stage"
+
+            actualTargetPercent = progress.currentProgress
+            if (visualPercent < actualTargetPercent) {
+                startInterpolationIfNeeded()
+            } else {
+                visualPercent = actualTargetPercent
+                applyVisualProgress(visualPercent)
+                startInterpolationIfNeeded()
+            }
         }
     }
 
     override fun onCompleted(folderName: String, totalCompleted: Int) {
         mainHandler.post {
+            mainHandler.removeCallbacks(interpolationRunnable)
+            isInterpolating = false
+            visualPercent = 100
+            actualTargetPercent = 100
+            applyVisualProgress(100)
             titleText.text = "✨ Subtitles Generated!"
             detailText.text = "$totalCompleted video(s) completed in $folderName"
-            progressBar.progress = 100
-            percentText.text = "100%"
             cancelBtn.visibility = View.GONE
             mainHandler.postDelayed({
                 cardView.visibility = View.GONE
@@ -149,6 +198,8 @@ class SubtitleProgressCard(
 
     override fun onCancelled() {
         mainHandler.post {
+            mainHandler.removeCallbacks(interpolationRunnable)
+            isInterpolating = false
             titleText.text = "Subtitle Generation Cancelled"
             detailText.text = "Process stopped by user"
             mainHandler.postDelayed({ cardView.visibility = View.GONE }, 1500L)

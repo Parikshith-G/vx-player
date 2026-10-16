@@ -7,12 +7,23 @@ android {
     namespace = "com.example.mxoffline"
     compileSdk = 35
 
+    ndkVersion = "30.0.16248370"
+
     defaultConfig {
         applicationId = "com.example.mxoffline"
         minSdk = 23
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        ndk {
+            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86"))
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/whisper/CMakeLists.txt")
+        }
     }
 
     compileOptions {

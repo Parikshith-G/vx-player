@@ -76,6 +76,7 @@ object AudioExtractor {
                 var isExtractorDone = false
                 var isDecoderDone = false
                 val chunkSpanUs = (endUs - startUs).coerceAtLeast(1L)
+                var lastReportedFrac = 0f
 
                 while (!isDecoderDone && !isCancelled()) {
                     if (!isExtractorDone) {
@@ -90,11 +91,15 @@ object AudioExtractor {
                                 if (sampleSize < 0 || (endUs < Long.MAX_VALUE && sampleTime >= endUs)) {
                                     codec.queueInputBuffer(inputBufferId, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                                     isExtractorDone = true
+                                    onProgress(1f)
                                 } else {
                                     codec.queueInputBuffer(inputBufferId, 0, sampleSize, sampleTime, 0)
                                     extractor.advance()
                                     val frac = ((sampleTime - startUs).toFloat() / chunkSpanUs).coerceIn(0f, 1f)
-                                    onProgress(frac)
+                                    if (frac - lastReportedFrac >= 0.05f) {
+                                        lastReportedFrac = frac
+                                        onProgress(frac)
+                                    }
                                 }
                             }
                         }

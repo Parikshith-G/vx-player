@@ -8,6 +8,8 @@ package com.example.mxoffline.subtitles.engine
 import android.content.Context
 import com.example.mxoffline.subtitles.audio.VoiceActivityDetector
 import com.example.mxoffline.subtitles.model.SubtitleSegment
+import com.whispercpp.whisper.WhisperContext
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.util.Locale
 
@@ -34,32 +36,53 @@ object SubtitleEngine {
 
         val totalChunks = speechChunks.size
         val modelFile = SubtitleModelManager.getActiveModel(context)
-        val modelTag = if (modelFile != null) {
-            val name = modelFile.nameWithoutExtension.lowercase(Locale.US)
-            when {
-                name.contains("tiny") -> "Whisper Tiny"
-                name.contains("base") -> "Whisper Base"
-                else -> modelFile.nameWithoutExtension
+
+        // Initialize Whisper native context
+        var whisperContext: WhisperContext? = null
+        if (modelFile != null && modelFile.exists() && modelFile.length() > 5_000_000L) {
+            runCatching {
+                whisperContext = WhisperContext.createContextFromFile(modelFile.absolutePath)
             }
-        } else {
-            "Offline AI"
         }
 
-        // 2. Process each speech chunk and add global time offset
-        speechChunks.forEachIndexed { index, chunk ->
-            if (isCancelled()) return segments
+        try {
+            // 2. Process each speech chunk through Whisper neural network
+            speechChunks.forEachIndexed { index, chunk ->
+                if (isCancelled()) return segments
 
-            val durationSec = String.format(Locale.US, "%.1fs", (chunk.endMs - chunk.startMs) / 1000f)
-            val chunkNumber = index + 1
-            val transcribedText = "[Dialogue $chunkNumber ($durationSec) • $modelTag]"
+                var transcribedText = ""
+                val ctx = whisperContext
+                if (ctx != null && chunk.pcmData.isNotEmpty()) {
+                    runCatching {
+                        val floatSamples = FloatArray(chunk.pcmData.size) { i ->
+                            (chunk.pcmData[i] / 32768.0f).coerceIn(-1.0f, 1.0f)
+                        }
+                        runBlocking {
+                            transcribedText = ctx.transcribeData(floatSamples, printTimestamp = false).trim()
+                        }
+                    }
+                }
 
-            val globalStartMs = timeOffsetMs + chunk.startMs
-            val globalEndMs = timeOffsetMs + chunk.endMs
+                if (transcribedText.isBlank()) {
+                    val durationSec = String.format(Locale.US, "%.1fs", (chunk.endMs - chunk.startMs) / 1000f)
+                    val chunkNumber = index + 1
+                    transcribedText = "[Dialogue $chunkNumber ($durationSec)]"
+                }
 
-            segments.add(SubtitleSegment(globalStartMs, globalEndMs, transcribedText))
+                val globalStartMs = timeOffsetMs + chunk.startMs
+                val globalEndMs = timeOffsetMs + chunk.endMs
 
-            val progress = ((index + 1).toFloat() / totalChunks).coerceIn(0f, 1f)
-            onProgress(progress)
+                segments.add(SubtitleSegment(globalStartMs, globalEndMs, transcribedText))
+
+                val progress = ((index + 1).toFloat() / totalChunks).coerceIn(0f, 1f)
+                onProgress(progress)
+            }
+        } finally {
+            whisperContext?.let { ctx ->
+                runCatching {
+                    runBlocking { ctx.release() }
+                }
+            }
         }
 
         return segments

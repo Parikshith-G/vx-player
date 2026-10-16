@@ -168,6 +168,8 @@ class SubtitleGenerationService : Service() {
                     } finally {
                         chunkPcm.delete()
                     }
+                    val chunkEndPercent = (((chunkIndex + 1) * 100) / totalChunks).coerceIn(0, 100)
+                    updateProgress(folderName, total, completedCount, index, video.name, chunkEndPercent, force = true)
                 }
 
                 if (!isCancelled.get() && accumulatedSegments.isNotEmpty()) {
@@ -189,14 +191,25 @@ class SubtitleGenerationService : Service() {
         }
     }
 
+    private var lastUpdateTimeMs = 0L
+    private var lastReportedPercent = -1
+
     private fun updateProgress(
         folderName: String,
         total: Int,
         completed: Int,
         index: Int,
         name: String,
-        percent: Int
+        percent: Int,
+        force: Boolean = false
     ) {
+        val now = System.currentTimeMillis()
+        if (!force && percent == lastReportedPercent) return
+        if (!force && (now - lastUpdateTimeMs < 1500L) && (percent - lastReportedPercent < 3)) return
+
+        lastUpdateTimeMs = now
+        lastReportedPercent = percent
+
         val progress = SubtitleBatchProgress(
             folderName = folderName,
             totalVideos = total,
