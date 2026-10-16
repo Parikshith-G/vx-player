@@ -98,4 +98,10 @@ class SubtitleTest {
         assertTrue(baseDisplay.contains("Whisper Base"))
         assertTrue(tinyDisplay.contains("Whisper Tiny"))
     }
+
+    @Test
+    fun testChunkDurationConstants() {
+        assertEquals(5 * 60 * 1000L, com.example.mxoffline.subtitles.audio.AudioExtractor.CHUNK_DURATION_MS)
+        assertEquals(5 * 60 * 1000 * 1000L, com.example.mxoffline.subtitles.audio.AudioExtractor.CHUNK_DURATION_US)
+    }
 }

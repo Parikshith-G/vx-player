@@ -1,7 +1,7 @@
 /**
  * Role: Unkillable Android Foreground Service for batch offline subtitle extraction.
- * Responsibility: Executes sequential audio decoding and speech transcription in background thread.
- * Details: Acquires Partial WakeLock, updates sticky notification, and persists .srt files to storage.
+ * Responsibility: Executes sequential 5-minute chunked audio decoding and speech transcription in background thread.
+ * Details: Acquires Partial WakeLock, updates sticky notification, and progressively saves .srt files to storage.
  */
 package com.example.mxoffline.subtitles.service
 
@@ -17,6 +17,7 @@ import com.example.mxoffline.subtitles.audio.AudioExtractor
 import com.example.mxoffline.subtitles.engine.SubtitleEngine
 import com.example.mxoffline.subtitles.manager.SubtitleGenerationManager
 import com.example.mxoffline.subtitles.model.SubtitleBatchProgress
+import com.example.mxoffline.subtitles.model.SubtitleSegment
 import com.example.mxoffline.subtitles.srt.SrtWriter
 import java.io.File
 import java.util.concurrent.Executors
@@ -91,7 +92,7 @@ class SubtitleGenerationService : Service() {
         executor.execute {
             if (!com.example.mxoffline.subtitles.engine.SubtitleModelManager.isModelAvailable(this)) {
                 wakeLock?.let { if (it.isHeld) it.release() }
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
                 SubtitleGenerationManager.dispatchCancelled()
                 stopSelf()
                 return@execute
@@ -103,43 +104,75 @@ class SubtitleGenerationService : Service() {
                 if (isCancelled.get()) break
                 val video = videos[index]
 
-                val pcmFile = File(cacheDir, "sub_extract_${System.currentTimeMillis()}.pcm")
-                try {
-                    // Stage 1: Audio Extraction (0% -> 50%)
-                    AudioExtractor.extractToPcm(
-                        context = this,
-                        videoUri = video.uri,
-                        outputPcmFile = pcmFile,
-                        onProgress = { extProgress ->
-                            val percent = (extProgress * 50).toInt()
-                            updateProgress(folderName, total, completedCount, index, video.name, percent)
-                        },
-                        isCancelled = { isCancelled.get() }
-                    )
+                val durationUs = AudioExtractor.getAudioDurationUs(this, video.uri)
+                val totalVideoMs = durationUs / 1000L
+                val chunkDurationMs = AudioExtractor.CHUNK_DURATION_MS
+                val totalChunks = if (totalVideoMs > 0) {
+                    ((totalVideoMs + chunkDurationMs - 1) / chunkDurationMs).toInt().coerceAtLeast(1)
+                } else {
+                    1
+                }
 
+                val accumulatedSegments = mutableListOf<SubtitleSegment>()
+
+                for (chunkIndex in 0 until totalChunks) {
                     if (isCancelled.get()) break
 
-                    // Stage 2: Transcription (50% -> 100%)
-                    val segments = SubtitleEngine.transcribe(
-                        context = this,
-                        pcmFile = pcmFile,
-                        onProgress = { transProgress ->
-                            val percent = 50 + (transProgress * 50).toInt()
-                            updateProgress(folderName, total, completedCount, index, video.name, percent)
-                        },
-                        isCancelled = { isCancelled.get() }
-                    )
+                    val startMs = chunkIndex * chunkDurationMs
+                    val endMs = ((chunkIndex + 1) * chunkDurationMs).coerceAtMost(if (totalVideoMs > 0) totalVideoMs else Long.MAX_VALUE)
+                    val startUs = startMs * 1000L
+                    val endUs = endMs * 1000L
 
-                    if (isCancelled.get()) break
+                    val chunkPcm = File(cacheDir, "sub_chunk_${index}_${chunkIndex}_${System.currentTimeMillis()}.pcm")
+                    try {
+                        // Stage 1: Extract 5-minute chunk audio
+                        val extOk = AudioExtractor.extractChunkToPcm(
+                            context = this,
+                            videoUri = video.uri,
+                            startUs = startUs,
+                            endUs = endUs,
+                            outputPcmFile = chunkPcm,
+                            onProgress = { extFrac ->
+                                val chunkWeight = 100f / totalChunks
+                                val overallPercent = ((chunkIndex * chunkWeight) + (extFrac * 0.5f * chunkWeight)).toInt()
+                                updateProgress(folderName, total, completedCount, index, video.name, overallPercent)
+                            },
+                            isCancelled = { isCancelled.get() }
+                        )
 
-                    if (segments.isNotEmpty()) {
-                        SrtWriter.saveSubtitles(this, video, segments)
+                        if (isCancelled.get()) break
+                        if (!extOk || !chunkPcm.exists() || chunkPcm.length() == 0L) continue
+
+                        // Stage 2: Transcribe 5-minute chunk with time offset
+                        val chunkSegments = SubtitleEngine.transcribe(
+                            context = this,
+                            pcmFile = chunkPcm,
+                            timeOffsetMs = startMs,
+                            onProgress = { transFrac ->
+                                val chunkWeight = 100f / totalChunks
+                                val overallPercent = ((chunkIndex * chunkWeight) + ((0.5f + transFrac * 0.5f) * chunkWeight)).toInt()
+                                updateProgress(folderName, total, completedCount, index, video.name, overallPercent)
+                            },
+                            isCancelled = { isCancelled.get() }
+                        )
+
+                        if (isCancelled.get()) break
+
+                        if (chunkSegments.isNotEmpty()) {
+                            accumulatedSegments.addAll(chunkSegments)
+                            // Progressively save accumulated subtitles so far
+                            SrtWriter.saveSubtitles(this, video, accumulatedSegments)
+                        }
+                    } catch (e: Exception) {
+                        // Skip damaged chunk and continue
+                    } finally {
+                        chunkPcm.delete()
                     }
+                }
+
+                if (!isCancelled.get() && accumulatedSegments.isNotEmpty()) {
+                    SrtWriter.saveSubtitles(this, video, accumulatedSegments)
                     completedCount++
-                } catch (e: Exception) {
-                    // Continue to next video if one fails
-                } finally {
-                    pcmFile.delete()
                 }
             }
 

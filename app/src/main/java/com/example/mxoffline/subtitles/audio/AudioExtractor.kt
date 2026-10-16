@@ -1,7 +1,7 @@
 /**
  * Role: Audio decoding and PCM resampling engine for video files.
- * Responsibility: Demuxes audio tracks via MediaExtractor and decodes frames to 16kHz mono PCM.
- * Details: Converts multi-channel audio to mono and resamples to 16,000Hz for speech recognition models.
+ * Responsibility: Demuxes audio tracks via MediaExtractor and decodes frames to 16kHz mono PCM in 5-minute chunks.
+ * Details: Converts multi-channel audio to mono and resamples to 16,000Hz with timestamp-windowed chunk extraction.
  */
 package com.example.mxoffline.subtitles.audio
 
@@ -20,14 +20,31 @@ object AudioExtractor {
 
     private const val TARGET_SAMPLE_RATE = 16000
     private const val TIMEOUT_US = 5000L
+    const val CHUNK_DURATION_MS = 5 * 60 * 1000L // 5 minutes chunk window
+    const val CHUNK_DURATION_US = CHUNK_DURATION_MS * 1000L
+
+    fun getAudioDurationUs(context: Context, videoUri: Uri): Long {
+        val extractor = MediaExtractor()
+        return try {
+            extractor.setDataSource(context, videoUri, null)
+            val trackIndex = selectAudioTrack(extractor) ?: return 0L
+            val format = extractor.getTrackFormat(trackIndex)
+            if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
+        } catch (e: Exception) {
+            0L
+        } finally {
+            runCatching { extractor.release() }
+        }
+    }
 
     /**
-     * Extracts and decodes the audio track from [videoUri] into 16kHz 16-bit signed mono PCM.
-     * Writes into [outputPcmFile] and reports extraction progress via [onProgress].
+     * Extracts and decodes audio for a specific time window [startUs] to [endUs] into 16kHz mono PCM.
      */
-    fun extractToPcm(
+    fun extractChunkToPcm(
         context: Context,
         videoUri: Uri,
+        startUs: Long,
+        endUs: Long,
         outputPcmFile: File,
         onProgress: (Float) -> Unit,
         isCancelled: () -> Boolean
@@ -40,9 +57,12 @@ object AudioExtractor {
             val trackIndex = selectAudioTrack(extractor) ?: return false
             extractor.selectTrack(trackIndex)
 
+            if (startUs > 0) {
+                extractor.seekTo(startUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+            }
+
             val format = extractor.getTrackFormat(trackIndex)
             val mime = format.getString(MediaFormat.KEY_MIME) ?: return false
-            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 1L
 
             codec = MediaCodec.createDecoderByType(mime)
             codec.configure(format, null, null, 0)
@@ -55,6 +75,7 @@ object AudioExtractor {
                 val bufferInfo = MediaCodec.BufferInfo()
                 var isExtractorDone = false
                 var isDecoderDone = false
+                val chunkSpanUs = (endUs - startUs).coerceAtLeast(1L)
 
                 while (!isDecoderDone && !isCancelled()) {
                     if (!isExtractorDone) {
@@ -64,17 +85,16 @@ object AudioExtractor {
                             if (inputBuffer != null) {
                                 inputBuffer.clear()
                                 val sampleSize = extractor.readSampleData(inputBuffer, 0)
-                                if (sampleSize < 0) {
+                                val sampleTime = extractor.sampleTime
+
+                                if (sampleSize < 0 || (endUs < Long.MAX_VALUE && sampleTime >= endUs)) {
                                     codec.queueInputBuffer(inputBufferId, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                                     isExtractorDone = true
                                 } else {
-                                    val sampleTime = extractor.sampleTime
                                     codec.queueInputBuffer(inputBufferId, 0, sampleSize, sampleTime, 0)
                                     extractor.advance()
-                                    if (durationUs > 0) {
-                                        val frac = (sampleTime.toFloat() / durationUs).coerceIn(0f, 1f)
-                                        onProgress(frac)
-                                    }
+                                    val frac = ((sampleTime - startUs).toFloat() / chunkSpanUs).coerceIn(0f, 1f)
+                                    onProgress(frac)
                                 }
                             }
                         }
@@ -85,16 +105,18 @@ object AudioExtractor {
                     while (outputBufferId >= 0 && !isCancelled()) {
                         val outputBuffer = codec.getOutputBuffer(outputBufferId)
                         if (outputBuffer != null && bufferInfo.size > 0) {
-                            outputBuffer.position(bufferInfo.offset)
-                            outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
+                            if (bufferInfo.presentationTimeUs >= (startUs - 200_000L)) {
+                                outputBuffer.position(bufferInfo.offset)
+                                outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
 
-                            val resampled = resampleTo16kMono(
-                                outputBuffer,
-                                inputSampleRate,
-                                inputChannelCount
-                            )
-                            if (resampled.isNotEmpty()) {
-                                outStream.write(resampled)
+                                val resampled = resampleTo16kMono(
+                                    outputBuffer,
+                                    inputSampleRate,
+                                    inputChannelCount
+                                )
+                                if (resampled.isNotEmpty()) {
+                                    outStream.write(resampled)
+                                }
                             }
                         }
                         codec.releaseOutputBuffer(outputBufferId, false)
@@ -122,6 +144,14 @@ object AudioExtractor {
             runCatching { extractor.release() }
         }
     }
+
+    fun extractToPcm(
+        context: Context,
+        videoUri: Uri,
+        outputPcmFile: File,
+        onProgress: (Float) -> Unit,
+        isCancelled: () -> Boolean
+    ): Boolean = extractChunkToPcm(context, videoUri, 0L, Long.MAX_VALUE, outputPcmFile, onProgress, isCancelled)
 
     private fun selectAudioTrack(extractor: MediaExtractor): Int? {
         for (i in 0 until extractor.trackCount) {

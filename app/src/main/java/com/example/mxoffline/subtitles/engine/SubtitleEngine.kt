@@ -1,7 +1,7 @@
 /**
  * Role: Offline speech recognition and transcription pipeline coordinator.
  * Responsibility: Feeds detected speech chunks through the offline Whisper model to generate dialogue text.
- * Details: Orchestrates VAD speech segmentation, token decoding, and progress tracking.
+ * Details: Orchestrates VAD speech segmentation, token decoding, and progress tracking with chunk time offsets.
  */
 package com.example.mxoffline.subtitles.engine
 
@@ -15,11 +15,13 @@ object SubtitleEngine {
 
     /**
      * Transcribes [pcmFile] into timed [SubtitleSegment] items using local VAD and Whisper model.
+     * [timeOffsetMs] is added to segment timestamps for synchronized chunk stitching.
      * Reports transcription progress from 0.0 to 1.0.
      */
     fun transcribe(
         context: Context,
         pcmFile: File,
+        timeOffsetMs: Long = 0L,
         onProgress: (Float) -> Unit,
         isCancelled: () -> Boolean
     ): List<SubtitleSegment> {
@@ -43,7 +45,7 @@ object SubtitleEngine {
             "Offline AI"
         }
 
-        // 2. Process each speech chunk
+        // 2. Process each speech chunk and add global time offset
         speechChunks.forEachIndexed { index, chunk ->
             if (isCancelled()) return segments
 
@@ -51,9 +53,10 @@ object SubtitleEngine {
             val chunkNumber = index + 1
             val transcribedText = "[Dialogue $chunkNumber ($durationSec) • $modelTag]"
 
-            if (transcribedText.isNotBlank()) {
-                segments.add(SubtitleSegment(chunk.startMs, chunk.endMs, transcribedText))
-            }
+            val globalStartMs = timeOffsetMs + chunk.startMs
+            val globalEndMs = timeOffsetMs + chunk.endMs
+
+            segments.add(SubtitleSegment(globalStartMs, globalEndMs, transcribedText))
 
             val progress = ((index + 1).toFloat() / totalChunks).coerceIn(0f, 1f)
             onProgress(progress)
