@@ -143,6 +143,10 @@ class PlayerQuickButtonsManager(
         }
     }
 
+    fun updateSpeedLabel(speed: Float) {
+        speedCircularBtn?.text = com.example.mxoffline.util.TimeFormatter.formatSpeed(speed)
+    }
+
     fun updateDynamicLabels() {
         orientationCircularBtn?.text = callbacks.getOrientationLabel()
         aspectCircularBtn?.text = callbacks.getAspectLabel()

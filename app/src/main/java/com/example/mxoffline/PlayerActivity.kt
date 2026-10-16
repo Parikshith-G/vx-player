@@ -333,27 +333,14 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
     override fun onTouchEvent(ev: MotionEvent): Boolean = s.gesture?.handleTouchEvent(ev) == true || super.onTouchEvent(ev)
     override fun onApplyAudioBoost(boost: Int) = s.audioBoost.applyBoost(boost, player)
 
-    override fun onAdjustSubtitlePosition(deltaFraction: Float) {
-        val newPadding = (subtitleBottomPaddingFraction + deltaFraction).coerceIn(0.0f, 0.80f)
-        applySubtitleStyle(subtitleFontSizeSp, newPadding)
-        val percent = (newPadding * 100).toInt()
-        val label = when {
-            percent <= 10 -> "Bottom ($percent%)"
-            percent <= 25 -> "Low ($percent%)"
-            percent <= 50 -> "Middle ($percent%)"
-            else -> "Top ($percent%)"
+    override fun onSpeedChanged(newSpeed: Float) {
+        currentPlaybackSpeed = newSpeed
+        if (::player.isInitialized) {
+            player.playbackParameters = androidx.media3.common.PlaybackParameters(newSpeed, 1f)
         }
-        s.hud.showQuickFeedback("Sub Position: $label")
-    }
-
-    override fun onAdjustSubtitleSize(deltaSp: Float) {
-        val newSize = (subtitleFontSizeSp + deltaSp).coerceIn(10f, 50f)
-        applySubtitleStyle(newSize, subtitleBottomPaddingFraction)
-        s.hud.showQuickFeedback("Sub Size: ${newSize.toInt()}sp")
-    }
-
-    override fun onSubtitleGestureEnded() {
-        persistSubtitleSettings()
+        settingsPrefs.edit().putFloat("playback_speed", newSpeed).apply()
+        s.quickButtons.updateSpeedLabel(newSpeed)
+        com.example.mxoffline.util.AppBackupManager.backupToStorageAsync(this)
     }
 
     private fun togglePlay() {

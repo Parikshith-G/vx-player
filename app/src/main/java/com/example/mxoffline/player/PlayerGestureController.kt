@@ -24,9 +24,7 @@ interface PlayerGestureCallback {
     fun onSeekBy(deltaMs: Long, isForward: Boolean)
     fun onTogglePlay()
     fun onApplyAudioBoost(boostPercent: Int)
-    fun onAdjustSubtitlePosition(deltaFraction: Float) {}
-    fun onAdjustSubtitleSize(deltaSp: Float) {}
-    fun onSubtitleGestureEnded() {}
+    fun onSpeedChanged(newSpeed: Float) {}
 }
 
 class PlayerGestureController(
@@ -69,11 +67,9 @@ class PlayerGestureController(
     private val touchSlop = (ViewConfiguration.get(context).scaledTouchSlop / 2).coerceAtLeast(8)
 
     private var twoFingerActive = false
-    private var twoFingerMode = 0 // 0 = NONE, 1 = SWIPE_Y (move), 2 = PINCH (size)
-    private var twoFingerStartMidY = 0f
-    private var twoFingerLastMidY = 0f
-    private var twoFingerStartDistance = 0f
-    private var twoFingerLastDistance = 0f
+    private var twoFingerStartMidX = 0f
+    private var twoFingerStartSpeed = 1.0f
+    private var currentTwoFingerSpeed = 1.0f
 
     private val resetSeekRunnable = Runnable {
         inDoubleTapSeek = false
@@ -132,24 +128,22 @@ class PlayerGestureController(
                     }
                     gestureMode = GESTURE_TWO_FINGER
                     twoFingerActive = true
-                    twoFingerMode = 0
-                    twoFingerStartMidY = (event.getY(0) + event.getY(1)) / 2f
-                    twoFingerLastMidY = twoFingerStartMidY
-                    val dx = (event.getX(0) - event.getX(1)).toDouble()
-                    val dy = (event.getY(0) - event.getY(1)).toDouble()
-                    twoFingerStartDistance = hypot(dx, dy).toFloat().coerceAtLeast(10f)
-                    twoFingerLastDistance = twoFingerStartDistance
+                    twoFingerStartMidX = (event.getX(0) + event.getX(1)) / 2f
+                    twoFingerStartSpeed = player.playbackParameters.speed
+                    currentTwoFingerSpeed = twoFingerStartSpeed
+                    hudController.showSpeed(currentTwoFingerSpeed)
                     return true
                 }
             }
 
             MotionEvent.ACTION_POINTER_UP -> {
                 if (twoFingerActive) {
-                    if (twoFingerMode != 0) {
-                        callback.onSubtitleGestureEnded()
+                    if (gestureMode == GESTURE_TWO_FINGER) {
+                        callback.onSpeedChanged(currentTwoFingerSpeed)
+                        hudController.showQuickFeedback("${com.example.mxoffline.util.TimeFormatter.formatSpeed(currentTwoFingerSpeed)} Speed")
+                        hudController.hideSpeed()
                     }
                     twoFingerActive = false
-                    twoFingerMode = 0
                     gestureMode = GESTURE_SWIPE_IGNORED
                     return true
                 }
@@ -178,37 +172,26 @@ class PlayerGestureController(
 
             MotionEvent.ACTION_MOVE -> {
                 if (twoFingerActive && event.pointerCount >= 2) {
-                    val curMidY = (event.getY(0) + event.getY(1)) / 2f
-                    val dx = (event.getX(0) - event.getX(1)).toDouble()
-                    val dy = (event.getY(0) - event.getY(1)).toDouble()
-                    val curDist = hypot(dx, dy).toFloat()
-                    val totalDy = curMidY - twoFingerStartMidY
-                    val totalDistChange = curDist - twoFingerStartDistance
+                    val curMidX = (event.getX(0) + event.getX(1)) / 2f
+                    val totalDx = curMidX - twoFingerStartMidX
+                    val stepPx = UiUtils.dp(context, 25).toFloat().coerceAtLeast(1f)
+                    val deltaSpeed = (totalDx / stepPx) * 0.1f
+                    val rawTargetSpeed = twoFingerStartSpeed + deltaSpeed
 
-                    if (twoFingerMode == 0) {
-                        if (abs(totalDistChange) > UiUtils.dp(context, 16) && abs(totalDistChange) > abs(totalDy)) {
-                            twoFingerMode = 2 // PINCH: Resize
-                            twoFingerLastDistance = curDist
-                        } else if (abs(totalDy) > UiUtils.dp(context, 10)) {
-                            twoFingerMode = 1 // SWIPE_Y: Move
-                            twoFingerLastMidY = curMidY
-                        }
+                    if (rawTargetSpeed > 8.0f) {
+                        twoFingerStartMidX = curMidX - ((8.0f - twoFingerStartSpeed) / 0.1f * stepPx)
+                    } else if (rawTargetSpeed < 0.25f) {
+                        twoFingerStartMidX = curMidX - ((0.25f - twoFingerStartSpeed) / 0.1f * stepPx)
                     }
 
-                    when (twoFingerMode) {
-                        1 -> {
-                            val stepDy = curMidY - twoFingerLastMidY
-                            val deltaFraction = -stepDy / (screenHeight * 0.7f)
-                            callback.onAdjustSubtitlePosition(deltaFraction)
-                            twoFingerLastMidY = curMidY
-                        }
-                        2 -> {
-                            val stepDist = curDist - twoFingerLastDistance
-                            val stepPx = UiUtils.dp(context, 15).toFloat().coerceAtLeast(1f)
-                            val deltaSp = (stepDist / stepPx) * 1.5f
-                            callback.onAdjustSubtitleSize(deltaSp)
-                            twoFingerLastDistance = curDist
-                        }
+                    val targetSpeed = (twoFingerStartSpeed + ((curMidX - twoFingerStartMidX) / stepPx) * 0.1f).coerceIn(0.25f, 8.0f)
+                    val roundedSpeed = (kotlin.math.round(targetSpeed * 10f) / 10f).coerceIn(0.25f, 8.0f)
+
+                    if (roundedSpeed != currentTwoFingerSpeed) {
+                        currentTwoFingerSpeed = roundedSpeed
+                        player.playbackParameters = PlaybackParameters(currentTwoFingerSpeed, 1.0f)
+                        hudController.showSpeed(currentTwoFingerSpeed)
+                        callback.onSpeedChanged(currentTwoFingerSpeed)
                     }
                     return true
                 }
@@ -295,11 +278,12 @@ class PlayerGestureController(
                 handler.removeCallbacks(holdBoostRunnable)
 
                 if (twoFingerActive) {
-                    if (twoFingerMode != 0) {
-                        callback.onSubtitleGestureEnded()
+                    if (gestureMode == GESTURE_TWO_FINGER) {
+                        callback.onSpeedChanged(currentTwoFingerSpeed)
+                        hudController.showQuickFeedback("${com.example.mxoffline.util.TimeFormatter.formatSpeed(currentTwoFingerSpeed)} Speed")
+                        hudController.hideSpeed()
                     }
                     twoFingerActive = false
-                    twoFingerMode = 0
                     gestureMode = GESTURE_NONE
                     return true
                 }

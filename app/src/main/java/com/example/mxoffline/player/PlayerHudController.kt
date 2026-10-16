@@ -96,7 +96,7 @@ class PlayerHudController(
     }
 
     fun showSpeed(speed: Float) {
-        centerSpeedHud.text = "▶▶ ${String.format(Locale.US, "%.1f", speed)}× Speed"
+        centerSpeedHud.text = "▶▶ ${TimeFormatter.formatSpeed(speed)} Speed"
         centerSpeedHud.visibility = View.VISIBLE
     }
 

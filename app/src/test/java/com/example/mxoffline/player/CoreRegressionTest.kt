@@ -67,4 +67,13 @@ class CoreRegressionTest {
         assertTrue(keys1.intersect(keys2.toSet()).isEmpty())
         assertFalse(keys1.contains("seen_name_$sameName"))
     }
+
+    @Test
+    fun testSpeedFormatting() {
+        assertEquals("1×", com.example.mxoffline.util.TimeFormatter.formatSpeed(1.0f))
+        assertEquals("1.25×", com.example.mxoffline.util.TimeFormatter.formatSpeed(1.25f))
+        assertEquals("1.5×", com.example.mxoffline.util.TimeFormatter.formatSpeed(1.5f))
+        assertEquals("2×", com.example.mxoffline.util.TimeFormatter.formatSpeed(2.0f))
+        assertEquals("0.75×", com.example.mxoffline.util.TimeFormatter.formatSpeed(0.75f))
+    }
 }

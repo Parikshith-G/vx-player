@@ -99,11 +99,11 @@ class PlayerFeatureTourHelper(
             zoneLabel = "⚡ Hold to Boost Speed"
         ),
         TourStep(
-            title = "Subtitle Sizing & Positioning",
-            targetName = "Subtitles (Two-Finger Gestures & Dialog)",
-            description = "Swipe vertically with 2 fingers to move subtitles up or down. Pinch or spread with 2 fingers to resize text. Tap 'Sub' in the top tray or Settings to open the slider dialog.",
+            title = "Two-Finger Speed Swipe",
+            targetName = "Screen (Two-Finger Swipe)",
+            description = "Swipe left with 2 fingers to decrease playback speed, and swipe right with 2 fingers to increase speed (0.25× – 8.0×).",
             zoneType = TourHighlightOverlay.HighlightType.ZONE_CENTER_BOOST,
-            zoneLabel = "🔤 2-Finger Swipe (Move) & Pinch (Resize)"
+            zoneLabel = "⚡ 2-Finger Swipe (Speed Up / Down)"
         ),
         TourStep(
             title = "Brightness Swipe Control",
