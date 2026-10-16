@@ -1,7 +1,7 @@
 /**
- * Role: Missing AI model prompt dialog and model selection coordinator.
- * Responsibility: Detects missing offline speech models and displays interactive download guidance & model switcher.
- * Details: Provides direct links to standard Whisper GGML binaries, radio selection for installed models, and clipboard fallback.
+ * Role: Missing AI model prompt dialog, file picker coordinator, and model importer.
+ * Responsibility: Detects missing offline speech models, offers system file picker import, and download guidance.
+ * Details: Seamlessly coordinates SAF document picking, All Files Access settings, and multi-model switching.
  */
 package com.example.mxoffline.subtitles.dialog
 
@@ -12,14 +12,28 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.provider.OpenableColumns
+import android.provider.Settings
 import android.widget.Toast
 import com.example.mxoffline.subtitles.engine.SubtitleModelManager
 import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.Executors
 
 object SubtitleModelPromptHelper {
 
     const val WHISPER_BASE_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
     const val WHISPER_TINY_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
+
+    @Volatile
+    private var pendingOnReady: (() -> Unit)? = null
+
+    fun clearPendingCallback() {
+        pendingOnReady = null
+    }
 
     fun checkModelOrPrompt(
         activity: Activity,
@@ -29,6 +43,7 @@ object SubtitleModelPromptHelper {
             onReady()
             return
         }
+        pendingOnReady = onReady
         showModelRequiredDialog(activity)
     }
 
@@ -63,7 +78,7 @@ object SubtitleModelPromptHelper {
                     ).show()
                 }
             }
-            .setNeutralButton("Download Models") { _, _ ->
+            .setNeutralButton("Import / Add...") { _, _ ->
                 showModelRequiredDialog(activity)
             }
             .setNegativeButton("Cancel", null)
@@ -71,27 +86,97 @@ object SubtitleModelPromptHelper {
     }
 
     fun showModelRequiredDialog(activity: Activity) {
-        val msg = """
-            To generate subtitles 100% offline with zero cloud dependency, VX Player requires a local Whisper speech recognition model.
+        val options = mutableListOf<String>()
+        val actions = mutableListOf<() -> Unit>()
 
-            Available Models:
-            • Whisper Base (ggml-base.bin ~140 MB) - Higher accuracy multilingual
-            • Whisper Tiny (ggml-tiny.bin ~75 MB) - Ultra-fast, lower RAM usage
+        options.add("📂 Select Model File (Already downloaded)")
+        actions.add { launchModelPicker(activity) }
 
-            Tap a button below to download the model file. Once downloaded, place the file in 'Downloads/VXPlayer' or 'Downloads' on your storage.
-        """.trimIndent()
+        options.add("🌐 Download Whisper Base (~140 MB)")
+        actions.add { openDownloadLink(activity, WHISPER_BASE_URL) }
+
+        options.add("🌐 Download Whisper Tiny (~75 MB)")
+        actions.add { openDownloadLink(activity, WHISPER_TINY_URL) }
+
+        if (!SubtitleModelManager.hasAllFilesAccess()) {
+            options.add("🔑 Grant Storage Access (Auto-detect in Downloads)")
+            actions.add { requestAllFilesAccess(activity) }
+        }
 
         AlertDialog.Builder(activity)
             .setTitle("✨ AI Subtitle Model")
-            .setMessage(msg)
-            .setPositiveButton("Download Base (~140MB)") { _, _ ->
-                openDownloadLink(activity, WHISPER_BASE_URL)
+            .setItems(options.toTypedArray()) { _, which ->
+                actions.getOrNull(which)?.invoke()
             }
-            .setNeutralButton("Download Tiny (~75MB)") { _, _ ->
-                openDownloadLink(activity, WHISPER_TINY_URL)
+            .setNegativeButton("Cancel") { _, _ ->
+                clearPendingCallback()
             }
-            .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    fun launchModelPicker(activity: Activity) {
+        val intent = Intent(activity, ModelPickerActivity::class.java)
+        activity.startActivity(intent)
+    }
+
+    fun requestAllFilesAccess(activity: Activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            runCatching {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:${activity.packageName}")
+                }
+                activity.startActivity(intent)
+            }.recoverCatching {
+                val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                activity.startActivity(intent)
+            }
+        }
+    }
+
+    fun importModelFromUri(
+        context: Context,
+        uri: Uri,
+        onComplete: (File?) -> Unit
+    ) {
+        val executor = Executors.newSingleThreadExecutor()
+        val handler = Handler(Looper.getMainLooper())
+
+        executor.execute {
+            var resultFile: File? = null
+            runCatching {
+                var fileName = "ggml-base.bin"
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val col = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && col >= 0) {
+                        val n = cursor.getString(col)
+                        if (!n.isNullOrBlank()) fileName = n
+                    }
+                }
+
+                val modelsDir = SubtitleModelManager.getExpectedDirectory(context)
+                val destFile = File(modelsDir, fileName)
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(destFile).use { output ->
+                        input.copyTo(output, bufferSize = 64 * 1024)
+                    }
+                }
+
+                if (destFile.exists() && SubtitleModelManager.isValidModelFile(destFile)) {
+                    SubtitleModelManager.setActiveModel(context, destFile)
+                    resultFile = destFile
+                }
+            }
+
+            handler.post {
+                val f = resultFile
+                if (f != null) {
+                    val callback = pendingOnReady
+                    pendingOnReady = null
+                    callback?.invoke()
+                }
+                onComplete(f)
+            }
+        }
     }
 
     private fun openDownloadLink(activity: Activity, url: String) {

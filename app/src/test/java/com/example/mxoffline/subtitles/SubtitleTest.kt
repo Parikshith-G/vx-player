@@ -104,4 +104,27 @@ class SubtitleTest {
         assertEquals(5 * 60 * 1000L, com.example.mxoffline.subtitles.audio.AudioExtractor.CHUNK_DURATION_MS)
         assertEquals(5 * 60 * 1000 * 1000L, com.example.mxoffline.subtitles.audio.AudioExtractor.CHUNK_DURATION_US)
     }
+
+    @Test
+    fun testModelValidationAndFilter() {
+        val validBase = File.createTempFile("ggml-base", ".bin")
+        validBase.deleteOnExit()
+        val dummyData = ByteArray(5_000_100)
+        FileOutputStream(validBase).use { it.write(dummyData) }
+        assertTrue("Valid 5MB ggml-base.bin should pass", SubtitleModelManager.isValidModelFile(validBase))
+
+        val crdownloadFile = File(validBase.parentFile, "ggml-base.bin.crdownload")
+        crdownloadFile.deleteOnExit()
+        validBase.copyTo(crdownloadFile, overwrite = true)
+        assertFalse("In-progress .crdownload should be rejected", SubtitleModelManager.isValidModelFile(crdownloadFile))
+
+        val partFile = File(validBase.parentFile, "ggml-base.part")
+        partFile.deleteOnExit()
+        validBase.copyTo(partFile, overwrite = true)
+        assertFalse("In-progress .part file should be rejected", SubtitleModelManager.isValidModelFile(partFile))
+
+        validBase.delete()
+        crdownloadFile.delete()
+        partFile.delete()
+    }
 }
