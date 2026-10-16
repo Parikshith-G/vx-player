@@ -5,6 +5,7 @@ import com.example.mxoffline.subtitles.engine.SubtitleModelManager
 import com.example.mxoffline.subtitles.model.SubtitleSegment
 import com.example.mxoffline.subtitles.srt.SrtWriter
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -75,6 +76,7 @@ class SubtitleTest {
     fun testSupportedModelFiles() {
         assertTrue(SubtitleModelManager.SUPPORTED_MODEL_NAMES.contains("whisper-base.bin"))
         assertTrue(SubtitleModelManager.SUPPORTED_MODEL_NAMES.contains("ggml-base.bin"))
+        assertTrue(SubtitleModelManager.SUPPORTED_MODEL_NAMES.contains("ggml-tiny.bin"))
     }
 
     @Test
@@ -85,5 +87,15 @@ class SubtitleTest {
         assertTrue("Base URL should end with ggml-base.bin", baseUrl.endsWith("ggml-base.bin"))
         assertTrue("Tiny URL should be valid https", tinyUrl.startsWith("https://"))
         assertTrue("Tiny URL should end with ggml-tiny.bin", tinyUrl.endsWith("ggml-tiny.bin"))
+    }
+
+    @Test
+    fun testModelDisplayNameFormatting() {
+        val baseFile = File("ggml-base.bin")
+        val tinyFile = File("ggml-tiny.bin")
+        val baseDisplay = SubtitleModelManager.formatModelDisplayName(baseFile)
+        val tinyDisplay = SubtitleModelManager.formatModelDisplayName(tinyFile)
+        assertTrue(baseDisplay.contains("Whisper Base"))
+        assertTrue(tinyDisplay.contains("Whisper Tiny"))
     }
 }

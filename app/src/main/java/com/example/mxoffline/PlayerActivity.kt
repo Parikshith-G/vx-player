@@ -202,9 +202,14 @@ class PlayerActivity : ComponentActivity(), PlayerGestureCallback, PlayerQuickBu
                 val name = s.playlist.names.getOrNull(idx) ?: "Video"
                 val sub = com.example.mxoffline.subtitles.srt.SubtitleFileLocator.findSubtitleForVideo(this, uri, name)
                 if (sub != null) {
+                    val subMime = when {
+                        sub.toString().endsWith(".vtt", true) -> androidx.media3.common.MimeTypes.TEXT_VTT
+                        sub.toString().endsWith(".ass", true) || sub.toString().endsWith(".ssa", true) -> androidx.media3.common.MimeTypes.TEXT_SSA
+                        else -> androidx.media3.common.MimeTypes.APPLICATION_SUBRIP
+                    }
                     MediaItem.Builder().setUri(uri).setSubtitleConfigurations(listOf(
                         MediaItem.SubtitleConfiguration.Builder(sub)
-                            .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_SUBRIP)
+                            .setMimeType(subMime)
                             .setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT)
                             .build()
                     )).build()

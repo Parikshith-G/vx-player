@@ -19,7 +19,7 @@ import java.nio.ByteOrder
 object AudioExtractor {
 
     private const val TARGET_SAMPLE_RATE = 16000
-    private const val TIMEOUT_US = 10000L
+    private const val TIMEOUT_US = 5000L
 
     /**
      * Extracts and decodes the audio track from [videoUri] into 16kHz 16-bit signed mono PCM.
@@ -51,7 +51,7 @@ object AudioExtractor {
             var inputSampleRate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE) else 44100
             var inputChannelCount = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else 2
 
-            BufferedOutputStream(FileOutputStream(outputPcmFile)).use { outStream ->
+            BufferedOutputStream(FileOutputStream(outputPcmFile), 65536).use { outStream ->
                 val bufferInfo = MediaCodec.BufferInfo()
                 var isExtractorDone = false
                 var isDecoderDone = false
@@ -60,23 +60,29 @@ object AudioExtractor {
                     if (!isExtractorDone) {
                         val inputBufferId = codec.dequeueInputBuffer(TIMEOUT_US)
                         if (inputBufferId >= 0) {
-                            val inputBuffer = codec.getInputBuffer(inputBufferId) ?: continue
-                            inputBuffer.clear()
-                            val sampleSize = extractor.readSampleData(inputBuffer, 0)
-                            if (sampleSize < 0) {
-                                codec.queueInputBuffer(inputBufferId, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                                isExtractorDone = true
-                            } else {
-                                val sampleTime = extractor.sampleTime
-                                codec.queueInputBuffer(inputBufferId, 0, sampleSize, sampleTime, 0)
-                                extractor.advance()
-                                if (durationUs > 0) onProgress((sampleTime.toFloat() / durationUs).coerceIn(0f, 0.5f))
+                            val inputBuffer = codec.getInputBuffer(inputBufferId)
+                            if (inputBuffer != null) {
+                                inputBuffer.clear()
+                                val sampleSize = extractor.readSampleData(inputBuffer, 0)
+                                if (sampleSize < 0) {
+                                    codec.queueInputBuffer(inputBufferId, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                                    isExtractorDone = true
+                                } else {
+                                    val sampleTime = extractor.sampleTime
+                                    codec.queueInputBuffer(inputBufferId, 0, sampleSize, sampleTime, 0)
+                                    extractor.advance()
+                                    if (durationUs > 0) {
+                                        val frac = (sampleTime.toFloat() / durationUs).coerceIn(0f, 1f)
+                                        onProgress(frac)
+                                    }
+                                }
                             }
                         }
                     }
 
-                    val outputBufferId = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)
-                    if (outputBufferId >= 0) {
+                    // Drain all pending decoded output buffers
+                    var outputBufferId = codec.dequeueOutputBuffer(bufferInfo, TIMEOUT_US)
+                    while (outputBufferId >= 0 && !isCancelled()) {
                         val outputBuffer = codec.getOutputBuffer(outputBufferId)
                         if (outputBuffer != null && bufferInfo.size > 0) {
                             outputBuffer.position(bufferInfo.offset)
@@ -87,13 +93,19 @@ object AudioExtractor {
                                 inputSampleRate,
                                 inputChannelCount
                             )
-                            outStream.write(resampled)
+                            if (resampled.isNotEmpty()) {
+                                outStream.write(resampled)
+                            }
                         }
                         codec.releaseOutputBuffer(outputBufferId, false)
                         if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                             isDecoderDone = true
+                            break
                         }
-                    } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 0L)
+                    }
+
+                    if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                         val newFormat = codec.outputFormat
                         inputSampleRate = newFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                         inputChannelCount = newFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)

@@ -1,7 +1,7 @@
 /**
- * Role: Missing AI model prompt dialog coordinator.
- * Responsibility: Detects missing offline speech models and displays interactive download guidance.
- * Details: Provides direct links to standard Whisper GGML binaries and handles fallback clipboard copy.
+ * Role: Missing AI model prompt dialog and model selection coordinator.
+ * Responsibility: Detects missing offline speech models and displays interactive download guidance & model switcher.
+ * Details: Provides direct links to standard Whisper GGML binaries, radio selection for installed models, and clipboard fallback.
  */
 package com.example.mxoffline.subtitles.dialog
 
@@ -14,6 +14,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import com.example.mxoffline.subtitles.engine.SubtitleModelManager
+import java.io.File
 
 object SubtitleModelPromptHelper {
 
@@ -31,21 +32,59 @@ object SubtitleModelPromptHelper {
         showModelRequiredDialog(activity)
     }
 
+    fun showModelSelectionDialog(
+        activity: Activity,
+        onModelSelected: ((File) -> Unit)? = null
+    ) {
+        val models = SubtitleModelManager.getAvailableModels(activity)
+        if (models.isEmpty()) {
+            showModelRequiredDialog(activity)
+            return
+        }
+
+        val active = SubtitleModelManager.getActiveModel(activity)
+        var selectedIndex = models.indexOfFirst { it.absolutePath == active?.absolutePath }.coerceAtLeast(0)
+        val items = models.map { SubtitleModelManager.formatModelDisplayName(it) }.toTypedArray()
+
+        AlertDialog.Builder(activity)
+            .setTitle("Select AI Subtitle Model")
+            .setSingleChoiceItems(items, selectedIndex) { _, which ->
+                selectedIndex = which
+            }
+            .setPositiveButton("Use Selected") { _, _ ->
+                if (selectedIndex in models.indices) {
+                    val chosen = models[selectedIndex]
+                    SubtitleModelManager.setActiveModel(activity, chosen)
+                    onModelSelected?.invoke(chosen)
+                    Toast.makeText(
+                        activity,
+                        "Active model: ${chosen.name}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .setNeutralButton("Download Models") { _, _ ->
+                showModelRequiredDialog(activity)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     fun showModelRequiredDialog(activity: Activity) {
         val msg = """
             To generate subtitles 100% offline with zero cloud dependency, VX Player requires a local Whisper speech recognition model.
 
-            Recommended Models:
-            • Whisper Base (ggml-base.bin ~140 MB) - High accuracy multilingual
+            Available Models:
+            • Whisper Base (ggml-base.bin ~140 MB) - Higher accuracy multilingual
             • Whisper Tiny (ggml-tiny.bin ~75 MB) - Ultra-fast, lower RAM usage
 
-            Tap 'Download Base Model' to download. Once downloaded, place the file in your 'Downloads/VXPlayer' folder, then tap Generate again.
+            Tap a button below to download the model file. Once downloaded, place the file in 'Downloads/VXPlayer' or 'Downloads' on your storage.
         """.trimIndent()
 
         AlertDialog.Builder(activity)
-            .setTitle("✨ AI Subtitle Model Needed")
+            .setTitle("✨ AI Subtitle Model")
             .setMessage(msg)
-            .setPositiveButton("Download Base Model (~140MB)") { _, _ ->
+            .setPositiveButton("Download Base (~140MB)") { _, _ ->
                 openDownloadLink(activity, WHISPER_BASE_URL)
             }
             .setNeutralButton("Download Tiny (~75MB)") { _, _ ->

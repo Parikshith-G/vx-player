@@ -1,11 +1,14 @@
 /**
  * Role: SubRip (.srt) subtitle serializer and file writer.
  * Responsibility: Converts timestamped subtitle segments into standard .srt format and saves to storage.
- * Details: Formats timestamps as HH:mm:ss,SSS and handles directory creation with internal fallback.
+ * Details: Saves alongside the source video and writes to public Downloads/VXPlayer/subtitles for file manager access.
  */
 package com.example.mxoffline.subtitles.srt
 
 import android.content.Context
+import android.media.MediaScannerConnection
+import android.os.Environment
+import android.provider.MediaStore
 import com.example.mxoffline.model.VideoItem
 import com.example.mxoffline.subtitles.model.SubtitleSegment
 import java.io.File
@@ -40,28 +43,73 @@ object SrtWriter {
     ): File {
         val srtContent = buildSrtContent(segments)
         val cleanName = video.name.substringBeforeLast('.')
+        var primaryFile: File? = null
 
-        // 1. Try saving in the same directory as the video if accessible
-        if (video.uri.scheme == "file") {
-            val videoPath = video.uri.path
-            if (!videoPath.isNullOrBlank()) {
-                val parentDir = File(videoPath).parentFile
-                if (parentDir != null && parentDir.canWrite()) {
-                    val srtFile = File(parentDir, "$cleanName.srt")
-                    runCatching {
-                        FileOutputStream(srtFile).use { it.write(srtContent.toByteArray(Charsets.UTF_8)) }
-                        return srtFile
-                    }
+        // 1. Try saving alongside the video file in the same directory
+        val realVideoPath = resolveVideoPath(context, video)
+        if (!realVideoPath.isNullOrBlank()) {
+            val videoParentDir = File(realVideoPath).parentFile
+            if (videoParentDir != null && (videoParentDir.canWrite() || videoParentDir.exists())) {
+                val srtInVideoDir = File(videoParentDir, "$cleanName.srt")
+                val writeSuccess = runCatching {
+                    FileOutputStream(srtInVideoDir).use { it.write(srtContent.toByteArray(Charsets.UTF_8)) }
+                    MediaScannerConnection.scanFile(context, arrayOf(srtInVideoDir.absolutePath), null, null)
+                    true
+                }.getOrDefault(false)
+
+                if (writeSuccess && srtInVideoDir.exists() && srtInVideoDir.length() > 0) {
+                    primaryFile = srtInVideoDir
                 }
             }
         }
 
-        // 2. Fallback to app external or internal subtitles storage
-        val subDir = File(context.getExternalFilesDir("subtitles") ?: context.filesDir, "subtitles").apply {
-            if (!exists()) mkdirs()
+        // 2. Also write a copy to public Downloads/VXPlayer/subtitles for easy user file manager access
+        runCatching {
+            val publicDir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "VXPlayer/subtitles"
+            ).apply { if (!exists()) mkdirs() }
+            val publicSrt = File(publicDir, "$cleanName.srt")
+            FileOutputStream(publicSrt).use { it.write(srtContent.toByteArray(Charsets.UTF_8)) }
+            MediaScannerConnection.scanFile(context, arrayOf(publicSrt.absolutePath), null, null)
+            if (primaryFile == null) {
+                primaryFile = publicSrt
+            }
         }
-        val targetFile = File(subDir, "${cleanName}_${video.id.coerceAtLeast(0L)}.srt")
-        FileOutputStream(targetFile).use { it.write(srtContent.toByteArray(Charsets.UTF_8)) }
-        return targetFile
+
+        // 3. Fallback to app subtitles directory if public storage is unavailable
+        if (primaryFile == null) {
+            val subDir = File(context.getExternalFilesDir("subtitles") ?: context.filesDir, "subtitles").apply {
+                if (!exists()) mkdirs()
+            }
+            val targetFile = File(subDir, "$cleanName.srt")
+            FileOutputStream(targetFile).use { it.write(srtContent.toByteArray(Charsets.UTF_8)) }
+            primaryFile = targetFile
+        }
+
+        return primaryFile
+    }
+
+    private fun resolveVideoPath(context: Context, video: VideoItem): String? {
+        if (video.uri.scheme == "file") {
+            return video.uri.path
+        }
+        if (video.uri.scheme == "content") {
+            runCatching {
+                context.contentResolver.query(
+                    video.uri,
+                    arrayOf(MediaStore.Video.Media.DATA),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    val col = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
+                    if (cursor.moveToFirst() && col >= 0) {
+                        return cursor.getString(col)
+                    }
+                }
+            }
+        }
+        return null
     }
 }

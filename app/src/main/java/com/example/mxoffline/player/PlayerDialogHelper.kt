@@ -5,6 +5,7 @@
  */
 package com.example.mxoffline.player
 
+import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Color
@@ -101,6 +102,15 @@ class PlayerDialogHelper(
         if (onGenerateSubtitlesClicked != null) {
             items.add("✨ Generate Subtitles (Offline AI)")
             actions.add { onGenerateSubtitlesClicked() }
+        }
+
+        val activeModel = com.example.mxoffline.subtitles.engine.SubtitleModelManager.getActiveModel(context)
+        val modelTitle = if (activeModel != null) activeModel.name else "None Selected"
+        items.add("🤖 AI Model: $modelTitle")
+        actions.add {
+            (context as? Activity)?.let { act ->
+                com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.showModelSelectionDialog(act)
+            }
         }
 
         items.add("❌ Disable Subtitles (Off)")

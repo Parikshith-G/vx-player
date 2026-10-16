@@ -26,17 +26,18 @@ object VoiceActivityDetector {
     private const val SILENCE_TOLERANCE_FRAMES = 15 // ~450ms of silence allowed inside a sentence
     private const val MIN_SPEECH_DURATION_MS = 600L
     private const val MAX_SPEECH_DURATION_MS = 12000L
+    private const val MAX_CHUNK_SAMPLES = (SAMPLE_RATE * MAX_SPEECH_DURATION_MS / 1000).toInt() // 192,000 samples
 
     fun detectSpeechChunks(pcmFile: File, isCancelled: () -> Boolean = { false }): List<SpeechChunk> {
         val chunks = mutableListOf<SpeechChunk>()
         if (!pcmFile.exists() || pcmFile.length() < FRAME_SAMPLES * 2) return chunks
 
-        val totalBytes = pcmFile.length()
-        val totalSamples = totalBytes / 2
         val buffer = ShortArray(FRAME_SAMPLES)
         val byteBuf = ByteArray(FRAME_SAMPLES * 2)
 
-        var currentChunkSamples = mutableListOf<Short>()
+        // Primitive chunk buffer to eliminate boxed object allocations and GC freezes
+        val chunkBuffer = ShortArray(MAX_CHUNK_SAMPLES)
+        var chunkSampleCount = 0
         var chunkStartSample = 0L
         var silentFrameCount = 0
         var isInSpeech = false
@@ -55,25 +56,31 @@ object VoiceActivityDetector {
                     if (!isInSpeech) {
                         isInSpeech = true
                         chunkStartSample = currentSampleIndex
-                        currentChunkSamples = mutableListOf()
+                        chunkSampleCount = 0
                     }
                     silentFrameCount = 0
-                    currentChunkSamples.addAll(buffer.toList())
+                    if (chunkSampleCount + FRAME_SAMPLES <= MAX_CHUNK_SAMPLES) {
+                        System.arraycopy(buffer, 0, chunkBuffer, chunkSampleCount, FRAME_SAMPLES)
+                        chunkSampleCount += FRAME_SAMPLES
+                    }
                 } else if (isInSpeech) {
                     silentFrameCount++
-                    currentChunkSamples.addAll(buffer.toList())
+                    if (chunkSampleCount + FRAME_SAMPLES <= MAX_CHUNK_SAMPLES) {
+                        System.arraycopy(buffer, 0, chunkBuffer, chunkSampleCount, FRAME_SAMPLES)
+                        chunkSampleCount += FRAME_SAMPLES
+                    }
 
-                    val chunkDurationMs = (currentChunkSamples.size * 1000L) / SAMPLE_RATE
+                    val chunkDurationMs = (chunkSampleCount * 1000L) / SAMPLE_RATE
                     if (silentFrameCount >= SILENCE_TOLERANCE_FRAMES || chunkDurationMs >= MAX_SPEECH_DURATION_MS) {
                         if (chunkDurationMs >= MIN_SPEECH_DURATION_MS) {
-                            val endSample = chunkStartSample + currentChunkSamples.size
+                            val endSample = chunkStartSample + chunkSampleCount
                             val startMs = (chunkStartSample * 1000L) / SAMPLE_RATE
                             val endMs = (endSample * 1000L) / SAMPLE_RATE
-                            chunks.add(SpeechChunk(startMs, endMs, currentChunkSamples.toShortArray()))
+                            chunks.add(SpeechChunk(startMs, endMs, chunkBuffer.copyOf(chunkSampleCount)))
                         }
                         isInSpeech = false
                         silentFrameCount = 0
-                        currentChunkSamples = mutableListOf()
+                        chunkSampleCount = 0
                     }
                 }
                 currentSampleIndex += FRAME_SAMPLES
@@ -81,12 +88,12 @@ object VoiceActivityDetector {
         }
 
         // Flush trailing chunk
-        if (isInSpeech && currentChunkSamples.isNotEmpty()) {
-            val chunkDurationMs = (currentChunkSamples.size * 1000L) / SAMPLE_RATE
+        if (isInSpeech && chunkSampleCount > 0) {
+            val chunkDurationMs = (chunkSampleCount * 1000L) / SAMPLE_RATE
             if (chunkDurationMs >= MIN_SPEECH_DURATION_MS) {
                 val startMs = (chunkStartSample * 1000L) / SAMPLE_RATE
                 val endMs = startMs + chunkDurationMs
-                chunks.add(SpeechChunk(startMs, endMs, currentChunkSamples.toShortArray()))
+                chunks.add(SpeechChunk(startMs, endMs, chunkBuffer.copyOf(chunkSampleCount)))
             }
         }
 

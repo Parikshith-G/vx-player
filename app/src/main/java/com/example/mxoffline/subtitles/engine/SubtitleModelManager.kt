@@ -6,9 +6,9 @@
 package com.example.mxoffline.subtitles.engine
 
 import android.content.Context
-import android.net.Uri
 import android.os.Environment
 import java.io.File
+import java.util.Locale
 
 object SubtitleModelManager {
 
@@ -23,7 +23,48 @@ object SubtitleModelManager {
         "ggml-model.bin"
     )
 
-    fun getModelFile(context: Context): File? {
+    fun getAvailableModels(context: Context): List<File> {
+        val found = mutableListOf<File>()
+        val searchDirs = listOf(
+            File(context.getExternalFilesDir("models") ?: context.filesDir, "models"),
+            File(context.filesDir, "models"),
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VXPlayer"),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            File(Environment.getExternalStorageDirectory(), "VXPlayer/models")
+        )
+
+        for (dir in searchDirs) {
+            if (dir.exists() && dir.isDirectory) {
+                val files = dir.listFiles() ?: continue
+                for (file in files) {
+                    if (file.isFile && file.length() > 5_000_000L) { // Min 5MB
+                        val lower = file.name.lowercase(Locale.US)
+                        val isSupported = SUPPORTED_MODEL_NAMES.contains(lower) ||
+                                lower.startsWith("ggml-") ||
+                                lower.startsWith("whisper-") ||
+                                lower.endsWith(".bin")
+                        if (isSupported && found.none { it.name.equals(file.name, ignoreCase = true) }) {
+                            found.add(file)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Include any custom persisted path if present and valid
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val custom = prefs.getString(KEY_MODEL_PATH, null)
+        if (!custom.isNullOrBlank()) {
+            val f = File(custom)
+            if (f.exists() && f.length() > 0 && found.none { it.absolutePath == f.absolutePath }) {
+                found.add(0, f)
+            }
+        }
+
+        return found
+    }
+
+    fun getActiveModel(context: Context): File? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val customPath = prefs.getString(KEY_MODEL_PATH, null)
         if (!customPath.isNullOrBlank()) {
@@ -31,36 +72,31 @@ object SubtitleModelManager {
             if (f.exists() && f.length() > 0) return f
         }
 
-        val searchDirs = listOf(
-            File(context.getExternalFilesDir("models") ?: context.filesDir, "models"),
-            File(context.filesDir, "models"),
-            File(Environment.getExternalStorageDirectory(), "VXPlayer/models"),
-            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "VXPlayer"),
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        )
-
-        for (dir in searchDirs) {
-            if (dir.exists() && dir.isDirectory) {
-                for (name in SUPPORTED_MODEL_NAMES) {
-                    val candidate = File(dir, name)
-                    if (candidate.exists() && candidate.length() > 10_000_000L) { // At least 10MB
-                        return candidate
-                    }
-                }
-            }
-        }
-        return null
+        val available = getAvailableModels(context)
+        return available.firstOrNull()
     }
 
-    fun setCustomModelPath(context: Context, path: String) {
+    fun getModelFile(context: Context): File? = getActiveModel(context)
+
+    fun setActiveModel(context: Context, file: File) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putString(KEY_MODEL_PATH, path)
+            .putString(KEY_MODEL_PATH, file.absolutePath)
             .apply()
     }
 
-    fun isModelAvailable(context: Context): Boolean {
-        return getModelFile(context) != null
+    fun isModelAvailable(context: Context): Boolean = getActiveModel(context) != null
+
+    fun formatModelDisplayName(file: File): String {
+        val name = file.name.lowercase(Locale.US)
+        val sizeMb = file.length() / (1024 * 1024)
+        val title = when {
+            name.contains("base") -> "Whisper Base"
+            name.contains("tiny") -> "Whisper Tiny"
+            name.contains("small") -> "Whisper Small"
+            else -> file.nameWithoutExtension.replaceFirstChar { it.uppercase(Locale.US) }
+        }
+        return "$title (${file.name} • ${sizeMb}MB)"
     }
 
     fun getExpectedDirectory(context: Context): File {

@@ -23,6 +23,7 @@ object LibraryMenuHelper {
             "📥 Restore Data from Storage",
             "📤 Export Backup File (Choose Location)...",
             "📂 Import Backup File (Choose File)...",
+            "🤖 Select AI Subtitle Model...",
             "ℹ About VX Player"
         )
         AlertDialog.Builder(activity)
@@ -49,7 +50,8 @@ object LibraryMenuHelper {
                     }
                     2 -> onExport?.invoke() ?: Toast.makeText(activity, "Export unavailable", Toast.LENGTH_SHORT).show()
                     3 -> onImport?.invoke() ?: Toast.makeText(activity, "Import unavailable", Toast.LENGTH_SHORT).show()
-                    4 -> AlertDialog.Builder(activity)
+                    4 -> com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.showModelSelectionDialog(activity)
+                    5 -> AlertDialog.Builder(activity)
                         .setTitle("VX Player")
                         .setMessage("Version 1.0\n100% Offline & Private.\nAll data is kept on your device and backed up to Downloads/${AppBackupManager.BACKUP_DIR_NAME}/${AppBackupManager.BACKUP_FILENAME}.")
                         .setPositiveButton("OK", null)
@@ -70,7 +72,11 @@ object LibraryMenuHelper {
     }
 
     fun showFolderActionDialog(activity: Activity, folder: com.example.mxoffline.model.FolderItem, onPlayAll: () -> Unit) {
-        val options = arrayOf("▶ Play All", "✨ Generate Subtitles (${folder.videos.size} videos)")
+        val options = arrayOf(
+            "▶ Play All",
+            "✨ Generate Subtitles (${folder.videos.size} videos)",
+            "🤖 Select AI Model..."
+        )
         AlertDialog.Builder(activity)
             .setTitle(folder.name)
             .setItems(options) { _, which ->
@@ -82,6 +88,7 @@ object LibraryMenuHelper {
                             Toast.makeText(activity, "Subtitle generation started for ${folder.name}", Toast.LENGTH_SHORT).show()
                         }
                     }
+                    2 -> com.example.mxoffline.subtitles.dialog.SubtitleModelPromptHelper.showModelSelectionDialog(activity)
                 }
             }
             .setNegativeButton("Cancel", null)
